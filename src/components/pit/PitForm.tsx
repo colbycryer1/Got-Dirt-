@@ -190,7 +190,7 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
       {/* Status */}
       <div className="flex items-center gap-3">
         <input type="checkbox" id="accepting" checked={form.accepting} onChange={(e) => set("accepting", e.target.checked)} className="w-4 h-4 accent-green-600" />
-        <label htmlFor="accepting" className="text-sm font-medium text-gray-700">Currently accepting material (green pin on map)</label>
+        <label htmlFor="accepting" className="text-sm font-medium text-gray-700">Open — currently accepting material (green pin on map)</label>
       </div>
 
       {/* Contact */}
