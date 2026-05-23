@@ -5,14 +5,14 @@ export default function LandingPage() {
     <main className="min-h-screen flex flex-col">
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-        <span className="text-2xl font-bold text-green-700">Got Dirt</span>
+        <span className="text-2xl font-extrabold text-black">Got Dirt?</span>
         <div className="flex gap-4">
           <Link href="/map" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
             Find Pits
           </Link>
           <Link
             href="/login"
-            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+            className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors"
           >
             Sign In
           </Link>
@@ -20,9 +20,9 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="flex-1 flex flex-col items-center justify-center text-center px-6 py-20 bg-gradient-to-b from-green-50 to-white">
+      <section className="flex-1 flex flex-col items-center justify-center text-center px-6 py-20 bg-gradient-to-b from-amber-50 to-white">
         <h1 className="text-5xl sm:text-6xl font-extrabold text-gray-900 mb-6 text-balance">
-          Find Dirt Pits <span className="text-green-600">Near You</span>
+          Find Dirt Pits <span className="text-amber-600">Near You</span>
         </h1>
         <p className="text-xl text-gray-600 max-w-2xl mb-10 text-balance">
           The fastest way for contractors and truck drivers to locate borrow pits
@@ -32,13 +32,13 @@ export default function LandingPage() {
         <div className="flex flex-col sm:flex-row gap-4">
           <Link
             href="/map"
-            className="bg-green-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-green-700 transition-colors shadow-lg"
+            className="bg-amber-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-amber-700 transition-colors shadow-lg"
           >
             Open the Map
           </Link>
           <Link
             href="/register"
-            className="border-2 border-green-600 text-green-700 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-green-50 transition-colors"
+            className="border-2 border-amber-600 text-amber-700 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-amber-50 transition-colors"
           >
             List Your Pit
           </Link>
@@ -107,21 +107,21 @@ export default function LandingPage() {
       </section>
 
       {/* CTA for pit owners */}
-      <section className="py-16 px-6 bg-green-700 text-white text-center">
+      <section className="py-16 px-6 bg-amber-700 text-white text-center">
         <h2 className="text-3xl font-bold mb-4">Own a Dirt Pit?</h2>
-        <p className="text-green-100 mb-8 text-lg max-w-xl mx-auto">
+        <p className="text-amber-100 mb-8 text-lg max-w-xl mx-auto">
           List your pit and start earning. Set your own rates. We handle payments and invoicing.
         </p>
         <Link
           href="/register"
-          className="bg-white text-green-700 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-green-50 transition-colors shadow"
+          className="bg-white text-amber-700 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-amber-50 transition-colors shadow"
         >
           Get Started Free
         </Link>
       </section>
 
       <footer className="py-8 px-6 border-t border-gray-200 text-center text-gray-400 text-sm">
-        © {new Date().getFullYear()} Got Dirt. All rights reserved.
+        © {new Date().getFullYear()} Got Dirt?. All rights reserved.
       </footer>
     </main>
   );

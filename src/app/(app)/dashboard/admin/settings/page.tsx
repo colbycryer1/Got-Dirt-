@@ -39,8 +39,8 @@ export default function AdminSettingsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center gap-4">
-        <Link href="/dashboard/admin" className="text-green-600 text-sm font-medium">← Admin</Link>
-        <span className="font-bold text-green-700 text-lg">Got Dirt</span>
+        <Link href="/dashboard/admin" className="text-amber-600 text-sm font-medium">← Admin</Link>
+        <span className="font-extrabold text-black text-lg">Got Dirt?</span>
       </nav>
 
       <div className="max-w-lg mx-auto px-6 py-10">
@@ -62,7 +62,7 @@ export default function AdminSettingsPage() {
                 step="0.5"
                 value={inputVal}
                 onChange={(e) => setInputVal(e.target.value)}
-                className="w-28 border border-gray-300 rounded-xl px-4 py-2 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-28 border border-gray-300 rounded-xl px-4 py-2 text-lg font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
               <span className="text-gray-600 text-lg">%</span>
             </div>

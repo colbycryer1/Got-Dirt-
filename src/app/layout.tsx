@@ -10,11 +10,11 @@ const geistSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Got Dirt — Find Dirt Pits Near You",
+  title: "Got Dirt? — Find Dirt Pits Near You",
   description:
     "Locate borrow pits and waste pits across Georgia. Built for contractors and trucking companies.",
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Got Dirt" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Got Dirt?" },
 };
 
 export const viewport: Viewport = {

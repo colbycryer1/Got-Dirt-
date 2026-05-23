@@ -24,7 +24,7 @@ export default async function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <span className="font-bold text-green-700 text-xl">Got Dirt Admin</span>
+        <span className="font-extrabold text-black text-xl">Got Dirt? Admin</span>
         <Link href="/map" className="text-sm text-gray-500 hover:text-gray-800">View Map</Link>
       </nav>
 
@@ -34,7 +34,7 @@ export default async function AdminDashboard() {
         {/* KPIs */}
         <div className="grid sm:grid-cols-4 gap-4 mb-10">
           {[
-            { label: "Active Pits", value: pitCount, color: "text-green-700" },
+            { label: "Active Pits", value: pitCount, color: "text-amber-700" },
             { label: "Users", value: userCount, color: "text-blue-700" },
             { label: "Transactions", value: totalTransactions, color: "text-purple-700" },
             { label: "Platform Revenue", value: centsToDisplay(revenueTotal), color: "text-orange-700" },
@@ -60,10 +60,10 @@ export default async function AdminDashboard() {
             <Link
               key={action.href}
               href={action.href}
-              className="bg-white rounded-2xl border border-gray-200 p-5 hover:border-green-400 hover:shadow-sm transition-all group"
+              className="bg-white rounded-2xl border border-gray-200 p-5 hover:border-amber-400 hover:shadow-sm transition-all group"
             >
               <div className="text-3xl mb-3">{action.icon}</div>
-              <h3 className="font-semibold text-gray-900 group-hover:text-green-700">{action.title}</h3>
+              <h3 className="font-semibold text-gray-900 group-hover:text-amber-700">{action.title}</h3>
               <p className="text-sm text-gray-500 mt-1">{action.desc}</p>
             </Link>
           ))}
