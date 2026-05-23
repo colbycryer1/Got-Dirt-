@@ -102,7 +102,7 @@ export function KmzUploader() {
           <li>Open Google Earth Pro (desktop app)</li>
           <li>Add placemarks for each dirt pit</li>
           <li>Right-click a folder containing the placemarks</li>
-          <li>Click "Save Place As…" and choose KMZ format</li>
+          <li>Click &quot;Save Place As…&quot; and choose KMZ format</li>
           <li>Upload that file here</li>
         </ol>
       </div>

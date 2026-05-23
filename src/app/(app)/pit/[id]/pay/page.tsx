@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import Link from "next/link";
@@ -20,7 +20,7 @@ interface PitInfo {
 }
 
 export default function PayPage({ params }: { params: { id: string } }) {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const [pit, setPit] = useState<PitInfo | null>(null);
   const [transactionType, setTransactionType] = useState<TransactionType>("DUMP");

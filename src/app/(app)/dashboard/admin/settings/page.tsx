@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 export default function AdminSettingsPage() {
-  const [feePercent, setFeePercent] = useState<number>(8);
+  const [, setFeePercent] = useState<number>(8);
   const [inputVal, setInputVal] = useState("8");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
