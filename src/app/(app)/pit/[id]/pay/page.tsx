@@ -71,8 +71,8 @@ export default function PayPage({ params }: { params: { id: string } }) {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center gap-4">
-        <Link href={`/pit/${params.id}`} className="text-green-600 text-sm font-medium">← Back</Link>
-        <span className="font-bold text-green-700 text-lg">Got Dirt</span>
+        <Link href={`/pit/${params.id}`} className="text-amber-600 text-sm font-medium">← Back</Link>
+        <span className="font-extrabold text-black text-lg">Got Dirt?</span>
       </nav>
 
       <div className="max-w-lg mx-auto px-6 py-10 space-y-6">
@@ -93,7 +93,7 @@ export default function PayPage({ params }: { params: { id: string } }) {
                     onClick={() => setTransactionType(t)}
                     className={`py-2 px-3 rounded-xl border-2 text-sm font-medium transition-colors ${
                       transactionType === t
-                        ? "border-green-500 bg-green-50 text-green-700"
+                        ? "border-amber-500 bg-amber-50 text-amber-700"
                         : "border-gray-200 text-gray-600 hover:border-gray-300"
                     }`}
                   >
@@ -108,7 +108,7 @@ export default function PayPage({ params }: { params: { id: string } }) {
           {/* Loads */}
           <div className="mb-6">
             <label className="text-sm font-medium text-gray-700 block mb-2">
-              Number of Loads: <span className="text-green-700 font-bold">{loads}</span>
+              Number of Loads: <span className="text-amber-700 font-bold">{loads}</span>
             </label>
             <input
               type="number"
@@ -116,7 +116,7 @@ export default function PayPage({ params }: { params: { id: string } }) {
               max={1000}
               value={loads}
               onChange={(e) => setLoads(Math.max(1, parseInt(e.target.value) || 1))}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
           </div>
 
@@ -147,7 +147,7 @@ export default function PayPage({ params }: { params: { id: string } }) {
             <button
               disabled={creating || !ratePerLoad}
               onClick={createIntent}
-              className="w-full bg-green-600 text-white py-3 rounded-xl font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
+              className="w-full bg-amber-600 text-white py-3 rounded-xl font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors"
             >
               {creating ? "Setting up payment…" : `Pay ${calc ? centsToDisplay(calc.totalChargeCents) : ""}`}
             </button>
@@ -197,7 +197,7 @@ function CheckoutForm() {
         <button
           type="submit"
           disabled={processing || !stripe}
-          className="w-full bg-green-600 text-white py-3 rounded-xl font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
+          className="w-full bg-amber-600 text-white py-3 rounded-xl font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors"
         >
           {processing ? "Processing…" : "Confirm Payment"}
         </button>

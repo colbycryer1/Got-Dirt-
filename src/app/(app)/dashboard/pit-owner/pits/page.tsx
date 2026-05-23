@@ -20,10 +20,10 @@ export default async function PitOwnerPits() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="font-bold text-green-700 text-xl">Got Dirt</Link>
+        <Link href="/" className="font-extrabold text-black text-xl">Got Dirt?</Link>
         <Link
           href="/dashboard/pit-owner/pits/new"
-          className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700"
+          className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700"
         >
           + Add Pit
         </Link>
@@ -35,7 +35,7 @@ export default async function PitOwnerPits() {
         {pits.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
             <p className="text-gray-400 mb-4">No pits listed yet.</p>
-            <Link href="/dashboard/pit-owner/pits/new" className="text-green-600 font-medium hover:underline">
+            <Link href="/dashboard/pit-owner/pits/new" className="text-amber-600 font-medium hover:underline">
               Add your first pit →
             </Link>
           </div>
@@ -50,7 +50,7 @@ export default async function PitOwnerPits() {
                     <div className="flex gap-4 mt-2 text-sm">
                       {pit.dumpRateCents && <span className="text-orange-600">Dump: {centsToDisplay(pit.dumpRateCents)}/load</span>}
                       {pit.borrowRateCents && <span className="text-blue-600">Borrow: {centsToDisplay(pit.borrowRateCents)}/load</span>}
-                      {pit.hasTopsoil && pit.topsoilRateCents && <span className="text-green-600">Topsoil: {centsToDisplay(pit.topsoilRateCents)}/load</span>}
+                      {pit.hasTopsoil && pit.topsoilRateCents && <span className="text-amber-600">Topsoil: {centsToDisplay(pit.topsoilRateCents)}/load</span>}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-3">

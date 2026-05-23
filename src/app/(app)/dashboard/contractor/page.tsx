@@ -19,7 +19,7 @@ export default async function ContractorDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="font-bold text-green-700 text-xl">Got Dirt</Link>
+        <Link href="/" className="font-extrabold text-black text-xl">Got Dirt?</Link>
         <div className="flex gap-4 text-sm">
           <Link href="/map" className="text-gray-600 hover:text-gray-900">Map</Link>
         </div>
@@ -31,7 +31,7 @@ export default async function ContractorDashboard() {
         {transactions.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
             <p className="text-gray-400 mb-4">No transactions yet.</p>
-            <Link href="/map" className="text-green-600 font-medium hover:underline">
+            <Link href="/map" className="text-amber-600 font-medium hover:underline">
               Find a pit on the map →
             </Link>
           </div>
@@ -55,7 +55,7 @@ export default async function ContractorDashboard() {
                     {tx.status}
                   </span>
                   {tx.invoice && (
-                    <Link href={`/api/invoices/${tx.invoice.id}/pdf`} className="text-xs text-green-600 hover:underline block mt-1">
+                    <Link href={`/api/invoices/${tx.invoice.id}/pdf`} className="text-xs text-amber-600 hover:underline block mt-1">
                       Invoice
                     </Link>
                   )}

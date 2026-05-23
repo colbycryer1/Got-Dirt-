@@ -54,7 +54,7 @@ export function SearchPanel({
   return (
     <div className="absolute top-3 left-3 z-10 bg-white rounded-2xl shadow-xl p-4 w-64 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="font-bold text-gray-900 text-sm">Got Dirt</span>
+        <span className="font-extrabold text-black text-sm">Got Dirt?</span>
         <span className="text-xs text-gray-400">
           {loading ? "Loading…" : `${pitCount} pit${pitCount !== 1 ? "s" : ""}`}
         </span>
@@ -67,12 +67,12 @@ export function SearchPanel({
           value={query}
           onChange={(e) => { setQuery(e.target.value); setNotFound(false); }}
           placeholder="City or ZIP code…"
-          className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
         />
         <button
           type="submit"
           disabled={searching}
-          className="bg-green-600 text-white px-3 py-2 rounded-xl hover:bg-green-700 disabled:opacity-50 transition-colors"
+          className="bg-amber-600 text-white px-3 py-2 rounded-xl hover:bg-amber-700 disabled:opacity-50 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
@@ -86,7 +86,7 @@ export function SearchPanel({
         onClick={onGeolocate}
         className="w-full flex items-center justify-center gap-2 border border-gray-200 rounded-xl py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
       >
-        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="3" strokeWidth="2"/>
           <path strokeWidth="2" d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
         </svg>
@@ -105,7 +105,7 @@ export function SearchPanel({
           max={100}
           value={radiusMiles}
           onChange={(e) => onRadiusChange(Number(e.target.value))}
-          className="w-full accent-green-600"
+          className="w-full accent-amber-600"
         />
       </div>
 
@@ -115,7 +115,7 @@ export function SearchPanel({
         <select
           value={filterType}
           onChange={(e) => onFilterTypeChange(e.target.value)}
-          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
         >
           <option value="">All Types</option>
           <option value="WASTE">Waste Pit</option>
@@ -130,7 +130,7 @@ export function SearchPanel({
         <select
           value={filterMaterial}
           onChange={(e) => onFilterMaterialChange(e.target.value)}
-          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
         >
           <option value="">All Materials</option>
           {MATERIAL_TYPES_BASE.map((m) => <option key={m} value={m}>{m}</option>)}
@@ -146,7 +146,7 @@ export function SearchPanel({
         <select
           value={filterAccepting}
           onChange={(e) => onFilterAcceptingChange(e.target.value)}
-          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
         >
           <option value="">All Pits</option>
           <option value="true">Open Only</option>

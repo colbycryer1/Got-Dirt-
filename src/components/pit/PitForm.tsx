@@ -117,7 +117,7 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
     router.refresh();
   }
 
-  const inputClass = "w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500";
+  const inputClass = "w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
   return (
@@ -186,7 +186,7 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
           <div>
             <label className={labelClass}>Has Topsoil Area?</label>
             <div className="flex items-center gap-3 mt-2">
-              <input type="checkbox" id="topsoil" checked={form.hasTopsoil} onChange={(e) => set("hasTopsoil", e.target.checked)} className="w-4 h-4 accent-green-600" />
+              <input type="checkbox" id="topsoil" checked={form.hasTopsoil} onChange={(e) => set("hasTopsoil", e.target.checked)} className="w-4 h-4 accent-amber-600" />
               <label htmlFor="topsoil" className="text-sm text-gray-600">Yes — clean topsoil stockpile</label>
             </div>
           </div>
@@ -201,7 +201,7 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
 
       {/* Status */}
       <div className="flex items-center gap-3">
-        <input type="checkbox" id="accepting" checked={form.accepting} onChange={(e) => set("accepting", e.target.checked)} className="w-4 h-4 accent-green-600" />
+        <input type="checkbox" id="accepting" checked={form.accepting} onChange={(e) => set("accepting", e.target.checked)} className="w-4 h-4 accent-amber-600" />
         <label htmlFor="accepting" className="text-sm font-medium text-gray-700">Open — currently accepting material (green pin on map)</label>
       </div>
 
@@ -212,7 +212,7 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
         <div className="grid sm:grid-cols-2 gap-y-2 gap-x-4 mb-4">
           {MATERIAL_TYPES_BASE.map((m) => (
             <label key={m} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-              <input type="checkbox" checked={form.materialTypes.includes(m)} onChange={() => toggleMaterial(m)} className="w-4 h-4 accent-green-600" />
+              <input type="checkbox" checked={form.materialTypes.includes(m)} onChange={() => toggleMaterial(m)} className="w-4 h-4 accent-amber-600" />
               {m}
             </label>
           ))}
@@ -221,7 +221,7 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
         <div className="grid sm:grid-cols-2 gap-y-2 gap-x-4 pl-2">
           {MATERIAL_TYPES_AGGREGATE.map((m) => (
             <label key={m} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-              <input type="checkbox" checked={form.materialTypes.includes(m)} onChange={() => toggleMaterial(m)} className="w-4 h-4 accent-green-600" />
+              <input type="checkbox" checked={form.materialTypes.includes(m)} onChange={() => toggleMaterial(m)} className="w-4 h-4 accent-amber-600" />
               {m}
             </label>
           ))}
@@ -256,7 +256,7 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
         <button
           type="submit"
           disabled={loading}
-          className="bg-green-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
+          className="bg-amber-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors"
         >
           {loading ? "Saving…" : pitId ? "Save Changes" : "Add Pit"}
         </button>

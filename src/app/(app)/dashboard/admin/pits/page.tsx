@@ -18,12 +18,12 @@ export default async function AdminPitsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <Link href="/dashboard/admin" className="text-green-600 text-sm font-medium">← Admin</Link>
+        <Link href="/dashboard/admin" className="text-amber-600 text-sm font-medium">← Admin</Link>
         <div className="flex gap-3">
           <Link href="/dashboard/admin/upload" className="border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg text-sm hover:bg-gray-50">
             Import KMZ
           </Link>
-          <Link href="/dashboard/admin/pits/new" className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-green-700">
+          <Link href="/dashboard/admin/pits/new" className="bg-amber-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-amber-700">
             + Add Pit
           </Link>
         </div>
@@ -56,7 +56,7 @@ export default async function AdminPitsPage() {
                       <PitStatusToggle pitId={pit.id} initialAccepting={pit.accepting} />
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/dashboard/admin/pits/${pit.id}/edit`} className="text-green-600 hover:underline text-xs">
+                      <Link href={`/dashboard/admin/pits/${pit.id}/edit`} className="text-amber-600 hover:underline text-xs">
                         Edit
                       </Link>
                     </td>

@@ -77,18 +77,18 @@ export default function AdminSettingsPage() {
               </div>
               <div className="flex justify-between">
                 <span>Pit owner receives</span>
-                <span className="font-semibold text-green-700">${(200 - 200 * (parseFloat(inputVal) || 0) / 100).toFixed(2)}</span>
+                <span className="font-semibold text-amber-700">${(200 - 200 * (parseFloat(inputVal) || 0) / 100).toFixed(2)}</span>
               </div>
             </div>
           </div>
 
           {error && <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-xl">{error}</div>}
-          {saved && <div className="bg-green-50 text-green-700 text-sm px-4 py-3 rounded-xl">Settings saved successfully.</div>}
+          {saved && <div className="bg-amber-50 text-amber-700 text-sm px-4 py-3 rounded-xl">Settings saved successfully.</div>}
 
           <button
             onClick={save}
             disabled={saving}
-            className="bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
+            className="bg-amber-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors"
           >
             {saving ? "Saving…" : "Save Settings"}
           </button>

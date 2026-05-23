@@ -14,11 +14,11 @@ export default async function PitDetailPage({ params }: { params: { id: string }
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4">
-        <Link href="/map" className="text-green-600 hover:text-green-700 text-sm font-medium">
+        <Link href="/map" className="text-amber-600 hover:text-amber-700 text-sm font-medium">
           ← Back to Map
         </Link>
         <span className="text-gray-300">|</span>
-        <Link href="/" className="text-xl font-bold text-green-700">Got Dirt</Link>
+        <Link href="/" className="text-xl font-extrabold text-black">Got Dirt?</Link>
       </nav>
 
       <div className="max-w-2xl mx-auto px-6 py-10">
@@ -56,16 +56,16 @@ export default async function PitDetailPage({ params }: { params: { id: string }
               </div>
             )}
             {pit.hasTopsoil && pit.topsoilRateCents && (
-              <div className="bg-green-50 rounded-xl p-4">
-                <p className="text-xs text-green-600 font-semibold uppercase tracking-wide mb-1">Clean Topsoil Rate</p>
-                <p className="text-2xl font-bold text-green-900">{centsToDisplay(pit.topsoilRateCents)}</p>
-                <p className="text-xs text-green-500">per load</p>
+              <div className="bg-amber-50 rounded-xl p-4">
+                <p className="text-xs text-amber-600 font-semibold uppercase tracking-wide mb-1">Clean Topsoil Rate</p>
+                <p className="text-2xl font-bold text-amber-900">{centsToDisplay(pit.topsoilRateCents)}</p>
+                <p className="text-xs text-amber-500">per load</p>
               </div>
             )}
           </div>
 
           {pit.hasTopsoil && (
-            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-4 py-2 rounded-xl mb-6">
+            <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-4 py-2 rounded-xl mb-6">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
               </svg>
@@ -86,12 +86,12 @@ export default async function PitDetailPage({ params }: { params: { id: string }
               <h3 className="text-sm font-semibold text-gray-700 mb-3">Contact</h3>
               {pit.contactName && <p className="text-gray-800 font-medium">{pit.contactName}</p>}
               {pit.contactPhone && (
-                <a href={`tel:${pit.contactPhone}`} className="text-green-600 text-sm hover:underline block">
+                <a href={`tel:${pit.contactPhone}`} className="text-amber-600 text-sm hover:underline block">
                   {pit.contactPhone}
                 </a>
               )}
               {pit.contactEmail && (
-                <a href={`mailto:${pit.contactEmail}`} className="text-green-600 text-sm hover:underline block">
+                <a href={`mailto:${pit.contactEmail}`} className="text-amber-600 text-sm hover:underline block">
                   {pit.contactEmail}
                 </a>
               )}
@@ -102,7 +102,7 @@ export default async function PitDetailPage({ params }: { params: { id: string }
           {pit.accepting && (pit.dumpRateCents || pit.borrowRateCents || pit.topsoilRateCents) && (
             <Link
               href={`/pit/${pit.id}/pay`}
-              className="w-full flex items-center justify-center bg-green-600 text-white py-4 rounded-xl font-semibold text-lg hover:bg-green-700 transition-colors"
+              className="w-full flex items-center justify-center bg-amber-600 text-white py-4 rounded-xl font-semibold text-lg hover:bg-amber-700 transition-colors"
             >
               Pay for This Pit
             </Link>
