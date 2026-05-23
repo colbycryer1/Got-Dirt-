@@ -26,7 +26,7 @@ export default function LandingPage() {
         </h1>
         <p className="text-xl text-gray-600 max-w-2xl mb-10 text-balance">
           The fastest way for contractors and truck drivers to locate borrow pits
-          and waste pits across Georgia. View rates, check availability, and pay
+          and waste pits across the United States. View rates, check availability, and pay
           — all in one place.
         </p>
         <div className="flex flex-col sm:flex-row gap-4">
