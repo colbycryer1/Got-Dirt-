@@ -36,9 +36,14 @@ export function SearchPanel({
     if (!query.trim()) return;
     setSearching(true);
     setNotFound(false);
-    const found = await onLocationSearch(query.trim());
-    setNotFound(!found);
-    setSearching(false);
+    try {
+      const found = await onLocationSearch(query.trim());
+      setNotFound(!found);
+    } catch {
+      setNotFound(true);
+    } finally {
+      setSearching(false);
+    }
   }
 
   return (

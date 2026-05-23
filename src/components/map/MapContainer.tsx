@@ -16,6 +16,7 @@ export function MapContainer({ apiKey }: Props) {
   const mapInstance = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  const fetchPitsRef = useRef<(lat: number, lng: number) => void>(() => {});
   const [pits, setPits] = useState<PitSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [radiusMiles, setRadiusMiles] = useState(50);
@@ -40,6 +41,9 @@ export function MapContainer({ apiKey }: Props) {
     }
   }, [radiusMiles, filterType, filterAccepting]);
 
+  // Keep ref current so the idle listener always calls the latest fetchPits
+  useEffect(() => { fetchPitsRef.current = fetchPits; }, [fetchPits]);
+
   // Initialize Google Maps
   useEffect(() => {
     if (!mapRef.current || mapInstance.current || !apiKey) return;
@@ -62,10 +66,10 @@ export function MapContainer({ apiKey }: Props) {
       mapInstance.current = map;
       infoWindowRef.current = new google.maps.InfoWindow();
 
-      // Fetch pits when map stops moving
+      // Fetch pits when map stops moving — use ref so filters/radius stay current
       map.addListener("idle", () => {
         const center = map.getCenter();
-        if (center) fetchPits(center.lat(), center.lng());
+        if (center) fetchPitsRef.current(center.lat(), center.lng());
       });
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -108,15 +112,19 @@ export function MapContainer({ apiKey }: Props) {
 
   async function handleLocationSearch(query: string): Promise<boolean> {
     if (!mapInstance.current) return false;
-    const geocoder = new google.maps.Geocoder();
-    const result = await geocoder.geocode({
-      address: query,
-      componentRestrictions: { country: "us" },
-    });
-    if (!result.results[0]) return false;
-    mapInstance.current.setCenter(result.results[0].geometry.location);
-    mapInstance.current.setZoom(11);
-    return true;
+    try {
+      const geocoder = new google.maps.Geocoder();
+      const result = await geocoder.geocode({
+        address: query,
+        componentRestrictions: { country: "us" },
+      });
+      if (!result.results[0]) return false;
+      mapInstance.current.setCenter(result.results[0].geometry.location);
+      mapInstance.current.setZoom(11);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function geolocate() {
