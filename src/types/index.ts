@@ -6,6 +6,7 @@ export const MATERIAL_TYPES_BASE = [
   "Fill Dirt (Clean)",
   "Top Soil",
   "Sand",
+  "Mulch",
 ] as const;
 
 export const MATERIAL_TYPES_AGGREGATE = [
