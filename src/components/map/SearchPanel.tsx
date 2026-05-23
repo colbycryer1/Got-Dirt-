@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, FormEvent } from "react";
+
 interface Props {
   radiusMiles: number;
   onRadiusChange: (v: number) => void;
@@ -8,6 +10,7 @@ interface Props {
   filterAccepting: string;
   onFilterAcceptingChange: (v: string) => void;
   onGeolocate: () => void;
+  onLocationSearch: (query: string) => Promise<boolean>;
   loading: boolean;
   pitCount: number;
 }
@@ -20,9 +23,24 @@ export function SearchPanel({
   filterAccepting,
   onFilterAcceptingChange,
   onGeolocate,
+  onLocationSearch,
   loading,
   pitCount,
 }: Props) {
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+
+  async function handleSearch(e: FormEvent) {
+    e.preventDefault();
+    if (!query.trim()) return;
+    setSearching(true);
+    setNotFound(false);
+    const found = await onLocationSearch(query.trim());
+    setNotFound(!found);
+    setSearching(false);
+  }
+
   return (
     <div className="absolute top-3 left-3 z-10 bg-white rounded-2xl shadow-xl p-4 w-64 space-y-3">
       <div className="flex items-center justify-between">
@@ -31,6 +49,27 @@ export function SearchPanel({
           {loading ? "Loading…" : `${pitCount} pit${pitCount !== 1 ? "s" : ""}`}
         </span>
       </div>
+
+      {/* City / ZIP search */}
+      <form onSubmit={handleSearch} className="flex gap-1.5">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setNotFound(false); }}
+          placeholder="City or ZIP code…"
+          className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+        />
+        <button
+          type="submit"
+          disabled={searching}
+          className="bg-green-600 text-white px-3 py-2 rounded-xl hover:bg-green-700 disabled:opacity-50 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+        </button>
+      </form>
+      {notFound && <p className="text-xs text-red-500 -mt-1">Location not found</p>}
 
       {/* Geolocate */}
       <button
@@ -75,7 +114,7 @@ export function SearchPanel({
         </select>
       </div>
 
-      {/* Accepting filter */}
+      {/* Availability filter */}
       <div>
         <label className="text-xs text-gray-500 block mb-1">Availability</label>
         <select

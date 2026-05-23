@@ -49,6 +49,7 @@ export function MapContainer({ apiKey }: Props) {
     (async () => {
       await importLibrary("maps");
       await importLibrary("marker");
+      await importLibrary("geocoding");
       const map = new google.maps.Map(mapRef.current!, {
         center: ATLANTA,
         zoom: 8,
@@ -105,6 +106,19 @@ export function MapContainer({ apiKey }: Props) {
     });
   }, [pits]);
 
+  async function handleLocationSearch(query: string): Promise<boolean> {
+    if (!mapInstance.current) return false;
+    const geocoder = new google.maps.Geocoder();
+    const result = await geocoder.geocode({
+      address: query,
+      componentRestrictions: { country: "us" },
+    });
+    if (!result.results[0]) return false;
+    mapInstance.current.setCenter(result.results[0].geometry.location);
+    mapInstance.current.setZoom(11);
+    return true;
+  }
+
   function geolocate() {
     if (!mapInstance.current) return;
     navigator.geolocation.getCurrentPosition(({ coords }) => {
@@ -134,6 +148,7 @@ export function MapContainer({ apiKey }: Props) {
         filterAccepting={filterAccepting}
         onFilterAcceptingChange={setFilterAccepting}
         onGeolocate={geolocate}
+        onLocationSearch={handleLocationSearch}
         loading={loading}
         pitCount={pits.length}
       />
