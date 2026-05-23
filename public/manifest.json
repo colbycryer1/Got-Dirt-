@@ -1,0 +1,24 @@
+{
+  "name": "Got Dirt",
+  "short_name": "Got Dirt",
+  "description": "Find dirt pits near you — borrow pits and waste pits across Georgia",
+  "start_url": "/map",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#16a34a",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

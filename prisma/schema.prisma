@@ -1,0 +1,211 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  PIT_OWNER
+  CONTRACTOR
+}
+
+enum PitType {
+  WASTE
+  BORROW
+  WASTE_BORROW
+}
+
+enum PitStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TransactionType {
+  DUMP
+  BORROW
+  TOPSOIL
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+// ─── MODELS ───────────────────────────────────────────────────────────────────
+
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  emailVerified    DateTime?
+  name             String?
+  image            String?
+  hashedPassword   String?
+  role             UserRole @default(CONTRACTOR)
+  phone            String?
+  company          String?
+
+  // Stripe Connect (pit owners)
+  stripeAccountId  String?  @unique
+  stripeOnboarded  Boolean  @default(false)
+
+  // Stripe customer (contractors)
+  stripeCustomerId String?  @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pits         Pit[]         @relation("PitOwner")
+  transactions Transaction[] @relation("TransactionContractor")
+  accounts     Account[]
+  sessions     Session[]
+
+  @@index([role])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Pit {
+  id        String @id @default(cuid())
+  name      String
+  address   String?
+  state     String @default("GA")
+
+  latitude  Float
+  longitude Float
+
+  pitType   PitType
+  status    PitStatus @default(ACTIVE)
+  accepting Boolean   @default(true)
+
+  // Rates stored in cents to avoid float rounding
+  dumpRateCents    Int?
+  borrowRateCents  Int?
+  hasTopsoil       Boolean @default(false)
+  topsoilRateCents Int?
+
+  contactName  String?
+  contactPhone String?
+  contactEmail String?
+  notes        String? @db.Text
+
+  ownerId      String?
+  owner        User?   @relation("PitOwner", fields: [ownerId], references: [id])
+
+  importedFromKmz Boolean @default(false)
+  kmzUploadId     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions Transaction[]
+
+  @@index([state])
+  @@index([accepting])
+  @@index([pitType])
+  @@index([ownerId])
+  @@index([latitude, longitude])
+}
+
+model KmzUpload {
+  id          String   @id @default(cuid())
+  filename    String
+  uploadedBy  String
+  pitsCreated Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model Transaction {
+  id String @id @default(cuid())
+
+  pit          Pit    @relation(fields: [pitId], references: [id])
+  pitId        String
+  contractor   User   @relation("TransactionContractor", fields: [contractorId], references: [id])
+  contractorId String
+
+  pitOwnerAccountId String
+
+  transactionType TransactionType
+  loads           Int             @default(1)
+
+  ratePerLoadCents   Int
+  subtotalCents      Int
+  platformFeeCents   Int
+  ownerPayoutCents   Int
+  totalChargeCents   Int
+
+  platformFeePercent Float
+
+  status TransactionStatus @default(PENDING)
+
+  stripePaymentIntentId String? @unique
+  stripeTransferId      String?
+
+  invoice Invoice?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([pitId])
+  @@index([contractorId])
+  @@index([status])
+}
+
+model Invoice {
+  id            String   @id @default(cuid())
+  invoiceNumber String   @unique
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  transactionId String   @unique
+  pdfUrl        String?
+  sentToEmail   String?
+  createdAt     DateTime @default(now())
+}
+
+model PlatformSettings {
+  id         String   @id @default("singleton")
+  feePercent Float    @default(8.0)
+  updatedAt  DateTime @updatedAt
+  updatedBy  String?
+}

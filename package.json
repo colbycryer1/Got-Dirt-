@@ -1,0 +1,44 @@
+{
+  "name": "got-dirt",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@auth/prisma-adapter": "^2.11.2",
+    "@googlemaps/js-api-loader": "^2.0.2",
+    "@googlemaps/markerclusterer": "^2.6.2",
+    "@mapbox/togeojson": "^0.16.2",
+    "@prisma/client": "^5.22.0",
+    "@react-pdf/renderer": "^4.5.1",
+    "@stripe/react-stripe-js": "^6.4.0",
+    "@stripe/stripe-js": "^9.6.0",
+    "@supabase/supabase-js": "^2.106.1",
+    "@xmldom/xmldom": "^0.9.10",
+    "bcryptjs": "^3.0.3",
+    "jszip": "^3.10.1",
+    "next": "14.2.35",
+    "next-auth": "^4.24.14",
+    "prisma": "^5.22.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-dropzone": "^15.0.0",
+    "stripe": "^22.1.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.19.41",
+    "@types/react": "^18.3.29",
+    "@types/react-dom": "^18.3.7",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.35",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}

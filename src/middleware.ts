@@ -1,0 +1,58 @@
+import { withAuth } from "next-auth/middleware";
+import { NextResponse } from "next/server";
+import { UserRole } from "@prisma/client";
+
+export default withAuth(
+  function middleware(req) {
+    const token = req.nextauth.token;
+    const { pathname } = req.nextUrl;
+
+    // Admin routes
+    if (pathname.startsWith("/dashboard/admin")) {
+      if (token?.role !== UserRole.ADMIN) {
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
+    }
+
+    // Pit owner routes
+    if (pathname.startsWith("/dashboard/pit-owner")) {
+      if (token?.role !== UserRole.PIT_OWNER && token?.role !== UserRole.ADMIN) {
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
+    }
+
+    return NextResponse.next();
+  },
+  {
+    callbacks: {
+      authorized({ token, req }) {
+        const { pathname } = req.nextUrl;
+
+        // Public paths — no auth required
+        const publicPaths = ["/", "/map", "/login", "/register"];
+        if (publicPaths.some((p) => pathname === p)) return true;
+
+        // Pit detail pages are public
+        if (pathname.startsWith("/pit/")) {
+          const isPay = pathname.endsWith("/pay");
+          if (!isPay) return true;
+        }
+
+        // API routes for reading pits are public
+        if (pathname === "/api/pits" && req.method === "GET") return true;
+        if (pathname.startsWith("/api/pits/") && req.method === "GET") return true;
+        if (pathname === "/api/settings" && req.method === "GET") return true;
+        if (pathname.startsWith("/api/payments/webhook")) return true;
+
+        // Everything else requires a session token
+        return !!token;
+      },
+    },
+  }
+);
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|icons/|images/).*)",
+  ],
+};
