@@ -31,6 +31,7 @@ const updatePitSchema = z.object({
   contactPhone: z.string().optional(),
   contactEmail: z.string().email().optional(),
   notes: z.string().optional(),
+  materialTypes: z.array(z.string()).optional(),
 });
 
 export async function PATCH(

@@ -22,6 +22,7 @@ export function MapContainer({ apiKey }: Props) {
   const [radiusMiles, setRadiusMiles] = useState(50);
   const [filterType, setFilterType] = useState<string>("");
   const [filterAccepting, setFilterAccepting] = useState<string>("");
+  const [filterMaterial, setFilterMaterial] = useState<string>("");
 
   const fetchPits = useCallback(async (lat: number, lng: number) => {
     setLoading(true);
@@ -32,6 +33,7 @@ export function MapContainer({ apiKey }: Props) {
         radius: String(radiusMiles),
         ...(filterType ? { type: filterType } : {}),
         ...(filterAccepting ? { accepting: filterAccepting } : {}),
+        ...(filterMaterial ? { material: filterMaterial } : {}),
       });
       const res = await fetch(`/api/pits?${params}`);
       const data = await res.json();
@@ -39,7 +41,7 @@ export function MapContainer({ apiKey }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [radiusMiles, filterType, filterAccepting]);
+  }, [radiusMiles, filterType, filterAccepting, filterMaterial]);
 
   // Keep ref current so the idle listener always calls the latest fetchPits
   useEffect(() => { fetchPitsRef.current = fetchPits; }, [fetchPits]);
@@ -155,6 +157,8 @@ export function MapContainer({ apiKey }: Props) {
         onFilterTypeChange={setFilterType}
         filterAccepting={filterAccepting}
         onFilterAcceptingChange={setFilterAccepting}
+        filterMaterial={filterMaterial}
+        onFilterMaterialChange={setFilterMaterial}
         onGeolocate={geolocate}
         onLocationSearch={handleLocationSearch}
         loading={loading}

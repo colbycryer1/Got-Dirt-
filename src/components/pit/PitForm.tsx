@@ -2,7 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { PitType } from "@/types";
+import { PitType, MATERIAL_TYPES_BASE, MATERIAL_TYPES_AGGREGATE } from "@/types";
 
 interface PitFormData {
   name: string;
@@ -20,6 +20,7 @@ interface PitFormData {
   contactPhone: string;
   contactEmail: string;
   notes: string;
+  materialTypes: string[];
 }
 
 interface Props {
@@ -44,6 +45,7 @@ const DEFAULT: PitFormData = {
   contactPhone: "",
   contactEmail: "",
   notes: "",
+  materialTypes: [],
 };
 
 export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner/pits" }: Props) {
@@ -54,6 +56,15 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
 
   function set(field: keyof PitFormData, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function toggleMaterial(material: string) {
+    setForm((prev) => ({
+      ...prev,
+      materialTypes: prev.materialTypes.includes(material)
+        ? prev.materialTypes.filter((m) => m !== material)
+        : [...prev.materialTypes, material],
+    }));
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -86,6 +97,7 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
       contactPhone: form.contactPhone || undefined,
       contactEmail: form.contactEmail || undefined,
       notes: form.notes || undefined,
+      materialTypes: form.materialTypes,
     };
 
     const res = await fetch(pitId ? `/api/pits/${pitId}` : "/api/pits", {
@@ -191,6 +203,29 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
       <div className="flex items-center gap-3">
         <input type="checkbox" id="accepting" checked={form.accepting} onChange={(e) => set("accepting", e.target.checked)} className="w-4 h-4 accent-green-600" />
         <label htmlFor="accepting" className="text-sm font-medium text-gray-700">Open — currently accepting material (green pin on map)</label>
+      </div>
+
+      {/* Material Types */}
+      <div className="border-t border-gray-100 pt-6">
+        <h3 className="text-sm font-semibold text-gray-800 mb-1">Material Types</h3>
+        <p className="text-xs text-gray-400 mb-3">Check all materials available at this pit</p>
+        <div className="grid sm:grid-cols-2 gap-y-2 gap-x-4 mb-4">
+          {MATERIAL_TYPES_BASE.map((m) => (
+            <label key={m} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" checked={form.materialTypes.includes(m)} onChange={() => toggleMaterial(m)} className="w-4 h-4 accent-green-600" />
+              {m}
+            </label>
+          ))}
+        </div>
+        <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Aggregate</p>
+        <div className="grid sm:grid-cols-2 gap-y-2 gap-x-4 pl-2">
+          {MATERIAL_TYPES_AGGREGATE.map((m) => (
+            <label key={m} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" checked={form.materialTypes.includes(m)} onChange={() => toggleMaterial(m)} className="w-4 h-4 accent-green-600" />
+              {m}
+            </label>
+          ))}
+        </div>
       </div>
 
       {/* Contact */}

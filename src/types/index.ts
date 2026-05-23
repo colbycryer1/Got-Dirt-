@@ -2,6 +2,24 @@ import { PitType, PitStatus, TransactionType, TransactionStatus, UserRole } from
 
 export type { PitType, PitStatus, TransactionType, TransactionStatus, UserRole };
 
+export const MATERIAL_TYPES_BASE = [
+  "Fill Dirt (Clean)",
+  "Top Soil",
+  "Sand",
+] as const;
+
+export const MATERIAL_TYPES_AGGREGATE = [
+  "#57 Stone",
+  "#34 Stone",
+  "GAB",
+  "Class 1 Rip Rap",
+  "Class 2 Rip Rap",
+  "Class 3 Rip Rap",
+] as const;
+
+export const ALL_MATERIAL_TYPES = [...MATERIAL_TYPES_BASE, ...MATERIAL_TYPES_AGGREGATE] as const;
+export type MaterialType = typeof ALL_MATERIAL_TYPES[number];
+
 export interface PitSummary {
   id: string;
   name: string;
@@ -21,6 +39,7 @@ export interface PitSummary {
   contactEmail: string | null;
   notes: string | null;
   ownerId: string | null;
+  materialTypes: string[];
 }
 
 export interface TransactionCalculation {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import { MATERIAL_TYPES_BASE, MATERIAL_TYPES_AGGREGATE } from "@/types";
 
 interface Props {
   radiusMiles: number;
@@ -9,6 +10,8 @@ interface Props {
   onFilterTypeChange: (v: string) => void;
   filterAccepting: string;
   onFilterAcceptingChange: (v: string) => void;
+  filterMaterial: string;
+  onFilterMaterialChange: (v: string) => void;
   onGeolocate: () => void;
   onLocationSearch: (query: string) => Promise<boolean>;
   loading: boolean;
@@ -22,6 +25,8 @@ export function SearchPanel({
   onFilterTypeChange,
   filterAccepting,
   onFilterAcceptingChange,
+  filterMaterial,
+  onFilterMaterialChange,
   onGeolocate,
   onLocationSearch,
   loading,
@@ -116,6 +121,22 @@ export function SearchPanel({
           <option value="WASTE">Waste Pit</option>
           <option value="BORROW">Borrow Pit</option>
           <option value="WASTE_BORROW">Waste &amp; Borrow</option>
+        </select>
+      </div>
+
+      {/* Material Type filter */}
+      <div>
+        <label className="text-xs text-gray-500 block mb-1">Material Type</label>
+        <select
+          value={filterMaterial}
+          onChange={(e) => onFilterMaterialChange(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+        >
+          <option value="">All Materials</option>
+          {MATERIAL_TYPES_BASE.map((m) => <option key={m} value={m}>{m}</option>)}
+          <optgroup label="Aggregate">
+            {MATERIAL_TYPES_AGGREGATE.map((m) => <option key={m} value={m}>{m}</option>)}
+          </optgroup>
         </select>
       </div>
 

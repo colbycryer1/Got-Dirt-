@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
   const pitType = searchParams.get("type") as PitType | null;
   const acceptingParam = searchParams.get("accepting");
   const state = searchParams.get("state") ?? undefined;
+  const materialType = searchParams.get("material") ?? undefined;
   const limit = parseInt(searchParams.get("limit") ?? "200");
   const offset = parseInt(searchParams.get("offset") ?? "0");
 
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest) {
     pitType: pitType ?? undefined,
     accepting: acceptingParam === "true" ? true : acceptingParam === "false" ? false : undefined,
     state,
+    materialType,
     limit,
     offset,
   });
@@ -54,6 +56,7 @@ const createPitSchema = z.object({
   contactPhone: z.string().optional(),
   contactEmail: z.string().email().optional(),
   notes: z.string().optional(),
+  materialTypes: z.array(z.string()).optional(),
 });
 
 // POST /api/pits — create a pit (auth: PIT_OWNER | ADMIN)

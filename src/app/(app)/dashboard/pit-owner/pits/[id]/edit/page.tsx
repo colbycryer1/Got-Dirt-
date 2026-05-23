@@ -35,6 +35,7 @@ export default async function PitOwnerEditPitPage({ params }: { params: { id: st
     contactPhone: pit.contactPhone ?? "",
     contactEmail: pit.contactEmail ?? "",
     notes: pit.notes ?? "",
+    materialTypes: (pit as { materialTypes?: string[] }).materialTypes ?? [],
   };
 
   return (
