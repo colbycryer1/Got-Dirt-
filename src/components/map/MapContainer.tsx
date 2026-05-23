@@ -152,7 +152,7 @@ function pinSvg(color: "green" | "red") {
 function buildInfoWindowContent(pit: PitSummary): string {
   const typeLabel = pit.pitType === "WASTE" ? "Waste Pit" : pit.pitType === "BORROW" ? "Borrow Pit" : "Waste & Borrow";
   const statusColor = pit.accepting ? "#16a34a" : "#dc2626";
-  const statusText = pit.accepting ? "Accepting" : "Not Accepting";
+  const statusText = pit.accepting ? "Open" : "Closed";
 
   let rates = "";
   if (pit.dumpRateCents) rates += `<div>Dump rate: <b>$${(pit.dumpRateCents / 100).toFixed(2)}/load</b></div>`;

@@ -71,7 +71,7 @@ export function SearchPanel({
           <option value="">All Types</option>
           <option value="WASTE">Waste Pit</option>
           <option value="BORROW">Borrow Pit</option>
-          <option value="WASTE_BORROW">Waste & Borrow</option>
+          <option value="WASTE_BORROW">Waste &amp; Borrow</option>
         </select>
       </div>
 
@@ -84,8 +84,8 @@ export function SearchPanel({
           className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
         >
           <option value="">All Pits</option>
-          <option value="true">Accepting Only</option>
-          <option value="false">Not Accepting</option>
+          <option value="true">Open Only</option>
+          <option value="false">Closed</option>
         </select>
       </div>
 
@@ -93,11 +93,11 @@ export function SearchPanel({
       <div className="border-t border-gray-100 pt-2 flex gap-4 text-xs text-gray-500">
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded-full bg-green-600 inline-block" />
-          Accepting
+          Open
         </span>
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded-full bg-red-600 inline-block" />
-          Full
+          Closed
         </span>
       </div>
     </div>

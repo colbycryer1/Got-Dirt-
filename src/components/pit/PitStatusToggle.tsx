@@ -33,7 +33,7 @@ export function PitStatusToggle({ pitId, initialAccepting }: Props) {
       } disabled:opacity-50`}
     >
       <span className={`w-2 h-2 rounded-full ${accepting ? "bg-green-500" : "bg-red-500"}`} />
-      {loading ? "…" : accepting ? "Accepting" : "Not Accepting"}
+      {loading ? "…" : accepting ? "Open" : "Closed"}
     </button>
   );
 }
