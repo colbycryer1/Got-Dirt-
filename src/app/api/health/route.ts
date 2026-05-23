@@ -9,6 +9,8 @@ export async function GET() {
       hasNextAuthUrl: !!process.env.NEXTAUTH_URL,
       hasNextAuthSecret: !!process.env.NEXTAUTH_SECRET,
       hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
+      hasMapsKey: !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
+      mapsKeyPrefix: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.slice(0, 8) ?? "NOT SET",
       nextAuthUrl: process.env.NEXTAUTH_URL,
     }});
   } catch (err) {

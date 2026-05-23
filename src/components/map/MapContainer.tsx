@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { setOptions } from "@googlemaps/js-api-loader";
+import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 import { PitSummary } from "@/types";
 import { SearchPanel } from "./SearchPanel";
 
@@ -42,10 +42,11 @@ export function MapContainer({ apiKey }: Props) {
 
   // Initialize Google Maps
   useEffect(() => {
-    if (!mapRef.current || mapInstance.current) return;
+    if (!mapRef.current || mapInstance.current || !apiKey) return;
 
     setOptions({ key: apiKey, v: "weekly" });
-    import("@googlemaps/js-api-loader").then(async ({ importLibrary }) => {
+
+    (async () => {
       await importLibrary("maps");
       await importLibrary("marker");
       const map = new google.maps.Map(mapRef.current!, {
@@ -65,7 +66,7 @@ export function MapContainer({ apiKey }: Props) {
         const center = map.getCenter();
         if (center) fetchPits(center.lat(), center.lng());
       });
-    });
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey]);
 
@@ -111,6 +112,14 @@ export function MapContainer({ apiKey }: Props) {
       mapInstance.current!.setCenter(pos);
       mapInstance.current!.setZoom(11);
     });
+  }
+
+  if (!apiKey) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-100">
+        <p className="text-red-600 font-medium">Google Maps API key is not configured. Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in Vercel and redeploy.</p>
+      </div>
+    );
   }
 
   return (
