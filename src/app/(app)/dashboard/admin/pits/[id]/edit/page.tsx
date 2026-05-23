@@ -1,0 +1,52 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { PitForm } from "@/components/pit/PitForm";
+
+export default async function EditPitPage({ params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions);
+  if (!session || session.user.role !== "ADMIN") redirect("/dashboard");
+
+  const pit = await prisma.pit.findUnique({ where: { id: params.id } });
+  if (!pit) notFound();
+
+  const initialData = {
+    name: pit.name,
+    address: pit.address ?? "",
+    state: pit.state,
+    latitude: String(pit.latitude),
+    longitude: String(pit.longitude),
+    pitType: pit.pitType as "WASTE" | "BORROW" | "WASTE_BORROW",
+    accepting: pit.accepting,
+    dumpRateDollars: pit.dumpRateCents ? String(pit.dumpRateCents / 100) : "",
+    borrowRateDollars: pit.borrowRateCents ? String(pit.borrowRateCents / 100) : "",
+    hasTopsoil: pit.hasTopsoil,
+    topsoilRateDollars: pit.topsoilRateCents ? String(pit.topsoilRateCents / 100) : "",
+    contactName: pit.contactName ?? "",
+    contactPhone: pit.contactPhone ?? "",
+    contactEmail: pit.contactEmail ?? "",
+    notes: pit.notes ?? "",
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <nav className="bg-white border-b px-6 py-4 flex items-center gap-4">
+        <Link href="/dashboard/admin/pits" className="text-green-600 text-sm font-medium">← All Pits</Link>
+        <span className="font-bold text-green-700 text-lg">Got Dirt</span>
+      </nav>
+      <div className="max-w-3xl mx-auto px-6 py-10">
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Edit Pit</h1>
+        <p className="text-gray-500 text-sm mb-8">{pit.name}</p>
+        <div className="bg-white rounded-2xl border border-gray-200 p-8">
+          <PitForm
+            initialData={initialData}
+            pitId={pit.id}
+            redirectTo="/dashboard/admin/pits"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
