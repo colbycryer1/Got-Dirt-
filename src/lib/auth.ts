@@ -56,7 +56,6 @@ export const authOptions: NextAuthOptions = {
         token.stripeOnboarded = (user as { stripeOnboarded: boolean }).stripeOnboarded;
       }
 
-      // Re-fetch on session update to pick up role/stripe changes
       if (trigger === "update") {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
@@ -68,7 +67,6 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      // On every JWT refresh pull latest role/stripe status
       if (!user && token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },

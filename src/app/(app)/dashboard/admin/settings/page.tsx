@@ -68,7 +68,6 @@ export default function AdminSettingsPage() {
             </div>
           </div>
 
-          {/* Example breakdown */}
           <div className="bg-gray-50 rounded-xl p-4 text-sm">
             <p className="font-semibold text-gray-700 mb-2">Example (100 per load × 2 loads = $200 total):</p>
             <div className="space-y-1 text-gray-600">

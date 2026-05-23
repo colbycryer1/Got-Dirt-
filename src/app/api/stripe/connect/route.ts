@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { UserRole } from "@prisma/client";
 
-// GET — check onboarding status
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -17,7 +16,6 @@ export async function GET() {
   });
 }
 
-// POST — create or retrieve Stripe Connect account link
 export async function POST() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

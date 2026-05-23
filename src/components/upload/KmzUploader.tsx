@@ -66,7 +66,7 @@ export function KmzUploader() {
           <p className="text-green-600 font-semibold">Drop the KMZ file here</p>
         ) : (
           <>
-            <p className="text-gray-700 font-semibold mb-1">Drag & drop a .kmz file here</p>
+            <p className="text-gray-700 font-semibold mb-1">Drag &amp; drop a .kmz file here</p>
             <p className="text-gray-400 text-sm">or click to browse — max 10MB</p>
           </>
         )}
