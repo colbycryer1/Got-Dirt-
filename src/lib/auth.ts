@@ -59,17 +59,6 @@ export const authOptions: NextAuthOptions = {
       if (trigger === "update") {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
-        });
-        if (dbUser) {
-          token.role = dbUser.role;
-          token.stripeAccountId = dbUser.stripeAccountId ?? undefined;
-          token.stripeOnboarded = dbUser.stripeOnboarded;
-        }
-      }
-
-      if (!user && token.id) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.id as string },
           select: { role: true, stripeAccountId: true, stripeOnboarded: true },
         });
         if (dbUser) {
