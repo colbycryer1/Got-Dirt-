@@ -15,7 +15,7 @@ interface ConnectStatus {
 }
 
 export default function StripeConnectPage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
