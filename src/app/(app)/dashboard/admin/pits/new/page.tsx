@@ -17,7 +17,7 @@ export default async function AdminNewPitPage() {
       <div className="max-w-3xl mx-auto px-6 py-10">
         <h1 className="text-2xl font-bold text-gray-900 mb-8">Add New Pit</h1>
         <div className="bg-white rounded-2xl border border-gray-200 p-8">
-          <PitForm redirectTo="/dashboard/admin/pits" />
+          <PitForm redirectTo="/dashboard/admin/pits" isAdmin />
         </div>
       </div>
     </div>

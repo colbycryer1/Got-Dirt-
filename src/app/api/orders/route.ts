@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { sendNewOrderPitOwner } from "@/lib/email";
 
 const createSchema = z.object({
   projectId:     z.string().cuid(),
@@ -64,7 +65,13 @@ export async function POST(req: NextRequest) {
 
   const pit = await prisma.pit.findUnique({
     where: { id: pitId },
-    select: { operatorProvided: true, equipmentProvided: true, equipmentNotes: true },
+    select: {
+      name: true,
+      operatorProvided: true,
+      equipmentProvided: true,
+      equipmentNotes: true,
+      owner: { select: { email: true, name: true } },
+    },
   });
   if (!pit) return NextResponse.json({ error: "Pit not found" }, { status: 404 });
 
@@ -81,6 +88,19 @@ export async function POST(req: NextRequest) {
       equipmentNotes:    pit.equipmentNotes,
     },
   });
+
+  // Notify pit owner of new order
+  if (pit.owner?.email) {
+    const buyer = await prisma.user.findUnique({ where: { id: session.user.id }, select: { company: true } });
+    void sendNewOrderPitOwner({
+      ownerEmail:  pit.owner.email,
+      ownerName:   pit.owner.name,
+      pitName:     pit.name,
+      buyerCompany: buyer?.company ?? null,
+      materialType: "TBD",
+      date,
+    });
+  }
 
   return NextResponse.json({ order }, { status: 201 });
 }

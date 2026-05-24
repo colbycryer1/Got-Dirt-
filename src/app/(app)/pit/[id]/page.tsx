@@ -2,14 +2,21 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { pitTypeLabel, centsToDisplay } from "@/types";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export default async function PitDetailPage({ params }: { params: { id: string } }) {
-  const pit = await prisma.pit.findUnique({ where: { id: params.id } });
+  const [pit, session] = await Promise.all([
+    prisma.pit.findUnique({ where: { id: params.id } }),
+    getServerSession(authOptions),
+  ]);
   if (!pit || pit.status === "INACTIVE") notFound();
 
   const typeLabel = pitTypeLabel(pit.pitType);
   const statusColor = pit.accepting ? "bg-sky-100 text-sky-800" : "bg-red-100 text-red-800";
   const statusText = pit.accepting ? "Accepting Material" : "Not Accepting";
+  const isBuyer = session?.user?.role === "BUYER" || session?.user?.role === "CONTRACTOR";
+  const canOrder = isBuyer && pit.accepting && pit.materialTypes.length > 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -39,6 +46,44 @@ export default async function PitDetailPage({ params }: { params: { id: string }
             </span>
           </div>
 
+          {/* Operator & Equipment */}
+          <div className="grid sm:grid-cols-2 gap-3 mb-6">
+            <div className={`rounded-xl p-4 flex items-start gap-3 ${pit.operatorProvided ? "bg-sky-50 border border-sky-200" : "bg-gray-50 border border-gray-200"}`}>
+              <span className="text-xl mt-0.5">{pit.operatorProvided ? "✅" : "➖"}</span>
+              <div>
+                <p className={`text-sm font-semibold ${pit.operatorProvided ? "text-sky-800" : "text-gray-500"}`}>
+                  Operator {pit.operatorProvided ? "Provided" : "Not Provided"}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">Onsite pit operator</p>
+              </div>
+            </div>
+            <div className={`rounded-xl p-4 flex items-start gap-3 ${pit.equipmentProvided ? "bg-sky-50 border border-sky-200" : "bg-gray-50 border border-gray-200"}`}>
+              <span className="text-xl mt-0.5">{pit.equipmentProvided ? "✅" : "➖"}</span>
+              <div>
+                <p className={`text-sm font-semibold ${pit.equipmentProvided ? "text-sky-800" : "text-gray-500"}`}>
+                  Equipment {pit.equipmentProvided ? "Provided" : "Not Provided"}
+                </p>
+                {pit.equipmentNotes
+                  ? <p className="text-xs text-gray-500 mt-0.5">{pit.equipmentNotes}</p>
+                  : <p className="text-xs text-gray-400 mt-0.5">Loading equipment</p>
+                }
+              </div>
+            </div>
+          </div>
+
+          {/* Hours */}
+          {(pit.hoursOpen || pit.hoursClose) && (
+            <div className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 px-4 py-3 rounded-xl mb-6">
+              <span>🕐</span>
+              <span>
+                Hours:{" "}
+                <span className="font-semibold">
+                  {pit.hoursOpen ?? "—"} – {pit.hoursClose ?? "—"}
+                </span>
+              </span>
+            </div>
+          )}
+
           {/* Rates */}
           <div className="grid sm:grid-cols-2 gap-4 mb-6">
             {pit.dumpRateCents && (
@@ -57,19 +102,22 @@ export default async function PitDetailPage({ params }: { params: { id: string }
             )}
             {pit.hasTopsoil && pit.topsoilRateCents && (
               <div className="bg-amber-50 rounded-xl p-4">
-                <p className="text-xs text-amber-600 font-semibold uppercase tracking-wide mb-1">Clean Topsoil Rate</p>
+                <p className="text-xs text-amber-600 font-semibold uppercase tracking-wide mb-1">Topsoil Rate</p>
                 <p className="text-2xl font-bold text-amber-900">{centsToDisplay(pit.topsoilRateCents)}</p>
                 <p className="text-xs text-amber-500">per load</p>
               </div>
             )}
           </div>
 
-          {pit.hasTopsoil && (
-            <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-4 py-2 rounded-xl mb-6">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
-              </svg>
-              Clean topsoil stockpile available (separate from other material)
+          {/* Materials */}
+          {pit.materialTypes.length > 0 && (
+            <div className="mb-6">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Available Materials</p>
+              <div className="flex flex-wrap gap-2">
+                {pit.materialTypes.map((m) => (
+                  <span key={m} className="bg-gray-100 text-gray-700 text-xs px-2.5 py-1 rounded-full font-medium">{m}</span>
+                ))}
+              </div>
             </div>
           )}
 
@@ -86,26 +134,43 @@ export default async function PitDetailPage({ params }: { params: { id: string }
               <h3 className="text-sm font-semibold text-gray-700 mb-3">Contact</h3>
               {pit.contactName && <p className="text-gray-800 font-medium">{pit.contactName}</p>}
               {pit.contactPhone && (
-                <a href={`tel:${pit.contactPhone}`} className="text-amber-600 text-sm hover:underline block">
-                  {pit.contactPhone}
-                </a>
+                <a href={`tel:${pit.contactPhone}`} className="text-amber-600 text-sm hover:underline block">{pit.contactPhone}</a>
               )}
               {pit.contactEmail && (
-                <a href={`mailto:${pit.contactEmail}`} className="text-amber-600 text-sm hover:underline block">
-                  {pit.contactEmail}
-                </a>
+                <a href={`mailto:${pit.contactEmail}`} className="text-amber-600 text-sm hover:underline block">{pit.contactEmail}</a>
               )}
             </div>
           )}
 
-          {/* Pay CTA */}
-          {pit.accepting && (pit.dumpRateCents || pit.borrowRateCents || pit.topsoilRateCents) && (
-            <Link
-              href={`/pit/${pit.id}/pay`}
-              className="w-full flex items-center justify-center bg-amber-600 text-white py-4 rounded-xl font-semibold text-lg hover:bg-amber-700 transition-colors"
-            >
-              Pay for This Pit
-            </Link>
+          {/* CTA */}
+          {pit.accepting && (
+            <div className="space-y-3">
+              {canOrder && (
+                <Link
+                  href={`/pit/${pit.id}/order`}
+                  className="w-full flex items-center justify-center bg-amber-600 text-white py-4 rounded-xl font-semibold text-lg hover:bg-amber-700 transition-colors"
+                >
+                  Place Order
+                </Link>
+              )}
+              {!session && (
+                <Link
+                  href={`/login?redirect=/pit/${pit.id}`}
+                  className="w-full flex items-center justify-center border border-amber-600 text-amber-600 py-3 rounded-xl font-semibold hover:bg-amber-50 transition-colors"
+                >
+                  Sign in to Place Order
+                </Link>
+              )}
+              {/* Legacy pay flow still accessible */}
+              {(pit.dumpRateCents || pit.borrowRateCents || pit.topsoilRateCents) && (
+                <Link
+                  href={`/pit/${pit.id}/pay`}
+                  className="w-full flex items-center justify-center border border-gray-200 text-gray-500 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+                >
+                  One-time payment (no project)
+                </Link>
+              )}
+            </div>
           )}
         </div>
       </div>

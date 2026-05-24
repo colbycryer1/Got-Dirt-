@@ -18,6 +18,8 @@ export async function GET(req: NextRequest) {
   const acceptingParam = searchParams.get("accepting");
   const state = searchParams.get("state") ?? undefined;
   const materialType = searchParams.get("material") ?? undefined;
+  const operatorProvidedParam = searchParams.get("operatorProvided");
+  const equipmentProvidedParam = searchParams.get("equipmentProvided");
   const limit = parseInt(searchParams.get("limit") ?? "200");
   const offset = parseInt(searchParams.get("offset") ?? "0");
 
@@ -33,6 +35,8 @@ export async function GET(req: NextRequest) {
     accepting: acceptingParam === "true" ? true : acceptingParam === "false" ? false : undefined,
     state,
     materialType,
+    operatorProvided: operatorProvidedParam === "true" ? true : operatorProvidedParam === "false" ? false : undefined,
+    equipmentProvided: equipmentProvidedParam === "true" ? true : equipmentProvidedParam === "false" ? false : undefined,
     limit,
     offset,
   });

@@ -23,6 +23,8 @@ export function MapContainer({ apiKey }: Props) {
   const [filterType, setFilterType] = useState<string>("");
   const [filterAccepting, setFilterAccepting] = useState<string>("");
   const [filterMaterial, setFilterMaterial] = useState<string>("");
+  const [filterOperator, setFilterOperator] = useState(false);
+  const [filterEquipment, setFilterEquipment] = useState(false);
 
   const fetchPits = useCallback(async (lat: number, lng: number) => {
     setLoading(true);
@@ -34,6 +36,8 @@ export function MapContainer({ apiKey }: Props) {
         ...(filterType ? { type: filterType } : {}),
         ...(filterAccepting ? { accepting: filterAccepting } : {}),
         ...(filterMaterial ? { material: filterMaterial } : {}),
+        ...(filterOperator ? { operatorProvided: "true" } : {}),
+        ...(filterEquipment ? { equipmentProvided: "true" } : {}),
       });
       const res = await fetch(`/api/pits?${params}`);
       const data = await res.json();
@@ -41,7 +45,7 @@ export function MapContainer({ apiKey }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [radiusMiles, filterType, filterAccepting, filterMaterial]);
+  }, [radiusMiles, filterType, filterAccepting, filterMaterial, filterOperator, filterEquipment]);
 
   // Keep ref current so the idle listener always calls the latest fetchPits
   useEffect(() => { fetchPitsRef.current = fetchPits; }, [fetchPits]);
@@ -159,6 +163,10 @@ export function MapContainer({ apiKey }: Props) {
         onFilterAcceptingChange={setFilterAccepting}
         filterMaterial={filterMaterial}
         onFilterMaterialChange={setFilterMaterial}
+        filterOperator={filterOperator}
+        onFilterOperatorChange={setFilterOperator}
+        filterEquipment={filterEquipment}
+        onFilterEquipmentChange={setFilterEquipment}
         onGeolocate={geolocate}
         onLocationSearch={handleLocationSearch}
         loading={loading}

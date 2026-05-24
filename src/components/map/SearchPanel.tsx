@@ -12,6 +12,10 @@ interface Props {
   onFilterAcceptingChange: (v: string) => void;
   filterMaterial: string;
   onFilterMaterialChange: (v: string) => void;
+  filterOperator: boolean;
+  onFilterOperatorChange: (v: boolean) => void;
+  filterEquipment: boolean;
+  onFilterEquipmentChange: (v: boolean) => void;
   onGeolocate: () => void;
   onLocationSearch: (query: string) => Promise<boolean>;
   loading: boolean;
@@ -27,6 +31,10 @@ export function SearchPanel({
   onFilterAcceptingChange,
   filterMaterial,
   onFilterMaterialChange,
+  filterOperator,
+  onFilterOperatorChange,
+  filterEquipment,
+  onFilterEquipmentChange,
   onGeolocate,
   onLocationSearch,
   loading,
@@ -152,6 +160,28 @@ export function SearchPanel({
           <option value="true">Open Only</option>
           <option value="false">Closed</option>
         </select>
+      </div>
+
+      {/* Operator / Equipment checkboxes */}
+      <div className="space-y-1.5">
+        <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={filterOperator}
+            onChange={(e) => onFilterOperatorChange(e.target.checked)}
+            className="w-3.5 h-3.5 accent-amber-600"
+          />
+          Operator provided
+        </label>
+        <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={filterEquipment}
+            onChange={(e) => onFilterEquipmentChange(e.target.checked)}
+            className="w-3.5 h-3.5 accent-amber-600"
+          />
+          Equipment on site
+        </label>
       </div>
 
       {/* Legend */}

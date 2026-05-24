@@ -34,6 +34,7 @@ export default async function EditPitPage({ params }: { params: { id: string } }
     contactEmail: pit.contactEmail ?? "",
     notes: pit.notes ?? "",
     materialTypes: (pit as { materialTypes?: string[] }).materialTypes ?? [],
+    geofenceRadiusMeters: String((pit as { geofenceRadiusMeters?: number }).geofenceRadiusMeters ?? 200),
   };
 
   return (
@@ -50,6 +51,7 @@ export default async function EditPitPage({ params }: { params: { id: string } }
             initialData={initialData}
             pitId={pit.id}
             redirectTo="/dashboard/admin/pits"
+            isAdmin
           />
         </div>
       </div>

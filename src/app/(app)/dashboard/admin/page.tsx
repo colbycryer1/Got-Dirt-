@@ -54,6 +54,8 @@ export default async function AdminDashboard() {
             { href: "/dashboard/admin/pits/new", icon: "➕", title: "Add Pit", desc: "Manually add a single pit" },
             { href: "/dashboard/admin/pits", icon: "📋", title: "Manage Pits", desc: "View, edit, and toggle all pits" },
             { href: "/dashboard/admin/users", icon: "👥", title: "Users", desc: "View and manage user accounts" },
+            { href: "/dashboard/admin/settlements", icon: "💰", title: "Settlements", desc: "COB settlement log and revenue" },
+            { href: "/dashboard/admin/disputes", icon: "🚩", title: "Disputes", desc: "Disputed loads pending review" },
             { href: "/dashboard/admin/settings", icon: "⚙️", title: "Settings", desc: "Platform fee and configuration" },
             { href: "/map", icon: "🗺️", title: "View Map", desc: "See pits as users see them" },
           ].map((action) => (

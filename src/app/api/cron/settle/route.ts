@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
+import { sendCOBSettledBuyer, sendPayoutSentPitOwner } from "@/lib/email";
 
 // Called by Vercel Cron at COB daily (vercel.json schedule: "0 23 * * *" = 11PM UTC)
 // Vercel sends: Authorization: Bearer CRON_SECRET
@@ -57,8 +58,8 @@ async function runCOBSettlement(date: Date): Promise<SettlementResult[]> {
       date:   { lte: nextDay },
     },
     include: {
-      pit:   { select: { id: true, dumpRateCents: true, owner: { select: { stripeAccountId: true } } } },
-      buyer: { select: { id: true, stripeCustomerId: true, defaultPaymentMethodId: true } },
+      pit:   { select: { id: true, name: true, dumpRateCents: true, owner: { select: { stripeAccountId: true, email: true, name: true } } } },
+      buyer: { select: { id: true, email: true, name: true, stripeCustomerId: true, defaultPaymentMethodId: true } },
     },
   });
 
@@ -154,6 +155,27 @@ async function runCOBSettlement(date: Date): Promise<SettlementResult[]> {
           status:            chargeId ? "PROCESSED" : "PENDING",
         },
       });
+
+      const dateStr = date.toISOString().slice(0, 10);
+      // Fire-and-forget emails
+      void sendCOBSettledBuyer({
+        buyerEmail: order.buyer.email,
+        buyerName:  order.buyer.name,
+        pitName:    order.pit.name,
+        date:       dateStr,
+        loadCount:  loads.length,
+        grossCents,
+      });
+      if (chargeId && order.pit.owner?.email) {
+        void sendPayoutSentPitOwner({
+          ownerEmail: order.pit.owner.email,
+          ownerName:  order.pit.owner.name,
+          pitName:    order.pit.name,
+          date:       dateStr,
+          loadCount:  loads.length,
+          netCents:   netToPitCents,
+        });
+      }
 
       results.push({
         orderId:    order.id,

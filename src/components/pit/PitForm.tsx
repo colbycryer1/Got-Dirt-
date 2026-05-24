@@ -26,12 +26,14 @@ interface PitFormData {
   contactEmail: string;
   notes: string;
   materialTypes: string[];
+  geofenceRadiusMeters: string;
 }
 
 interface Props {
   initialData?: Partial<PitFormData>;
   pitId?: string;
   redirectTo?: string;
+  isAdmin?: boolean;
 }
 
 const DEFAULT: PitFormData = {
@@ -56,9 +58,10 @@ const DEFAULT: PitFormData = {
   contactEmail: "",
   notes: "",
   materialTypes: [],
+  geofenceRadiusMeters: "200",
 };
 
-export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner/pits" }: Props) {
+export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner/pits", isAdmin = false }: Props) {
   const router = useRouter();
   const [form, setForm] = useState<PitFormData>({ ...DEFAULT, ...initialData });
   const [loading, setLoading] = useState(false);
@@ -113,6 +116,9 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
       contactEmail: form.contactEmail || undefined,
       notes:        form.notes || undefined,
       materialTypes: form.materialTypes,
+      ...(isAdmin && form.geofenceRadiusMeters
+        ? { geofenceRadiusMeters: parseInt(form.geofenceRadiusMeters) }
+        : {}),
     };
 
     const res = await fetch(pitId ? `/api/pits/${pitId}` : "/api/pits", {
@@ -302,6 +308,27 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
           </div>
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="border-t border-gray-100 pt-6">
+          <h3 className="text-sm font-semibold text-gray-800 mb-1">Admin Settings</h3>
+          <p className="text-xs text-gray-400 mb-3">These fields are only visible to admins</p>
+          <div className="max-w-xs">
+            <label className={labelClass}>Geofence Radius (meters)</label>
+            <input
+              type="number"
+              min="50"
+              max="2000"
+              step="10"
+              value={form.geofenceRadiusMeters}
+              onChange={(e) => set("geofenceRadiusMeters", e.target.value)}
+              className={inputClass}
+              placeholder="200"
+            />
+            <p className="text-xs text-gray-400 mt-1">Driver must be within this radius to log a GPS load</p>
+          </div>
+        </div>
+      )}
 
       <div>
         <label className={labelClass}>Notes</label>

@@ -9,6 +9,8 @@ export interface PitSearchParams {
   accepting?: boolean;
   state?: string;
   materialType?: string;
+  operatorProvided?: boolean;
+  equipmentProvided?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -22,6 +24,8 @@ export async function searchPitsNear(params: PitSearchParams) {
     accepting,
     state,
     materialType,
+    operatorProvided,
+    equipmentProvided,
     limit = 200,
     offset = 0,
   } = params;
@@ -44,6 +48,8 @@ export async function searchPitsNear(params: PitSearchParams) {
   if (state) where.state = state;
   // materialTypes is a String[] field added via migration; cast needed until prisma generate runs
   if (materialType) (where as Record<string, unknown>).materialTypes = { has: materialType };
+  if (operatorProvided !== undefined) (where as Record<string, unknown>).operatorProvided = operatorProvided;
+  if (equipmentProvided !== undefined) (where as Record<string, unknown>).equipmentProvided = equipmentProvided;
 
   const pits = await prisma.pit.findMany({
     where,
