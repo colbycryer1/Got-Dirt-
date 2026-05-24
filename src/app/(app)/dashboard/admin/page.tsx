@@ -54,6 +54,7 @@ export default async function AdminDashboard() {
             { href: "/dashboard/admin/pits/new", icon: "➕", title: "Add Pit", desc: "Manually add a single pit" },
             { href: "/dashboard/admin/pits", icon: "📋", title: "Manage Pits", desc: "View, edit, and toggle all pits" },
             { href: "/dashboard/admin/users", icon: "👥", title: "Users", desc: "View and manage user accounts" },
+            { href: "/dashboard/admin/drivers", icon: "🪪", title: "Driver Verification", desc: "Review GDOT license and insurance docs" },
             { href: "/dashboard/admin/kyc", icon: "🔐", title: "KYC Status", desc: "Pit owner Stripe verification status" },
             { href: "/dashboard/admin/aml", icon: "🚨", title: "AML Flags", desc: "Anti-money laundering review queue" },
             { href: "/dashboard/admin/claims", icon: "🏷️", title: "Pit Claims", desc: "Owners claiming admin-uploaded pits" },

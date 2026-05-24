@@ -64,8 +64,14 @@ export default function NewHaulOrderForm({ projects, drivers, carriers }: Props)
         const data = await res.json();
         throw new Error(data.error ?? "Failed to create order");
       }
-      router.push("/dashboard/buyer/haul-orders");
-      router.refresh();
+      const { order, clientSecret } = await res.json();
+      if (clientSecret) {
+        // Redirect to deposit payment page
+        router.push(`/dashboard/buyer/haul-orders/${order.id}/pay?secret=${encodeURIComponent(clientSecret)}`);
+      } else {
+        router.push("/dashboard/buyer/haul-orders");
+        router.refresh();
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to create order.");
       setSubmitting(false);
