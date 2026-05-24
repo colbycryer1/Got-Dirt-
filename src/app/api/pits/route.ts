@@ -2,45 +2,51 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { searchPitsNear } from "@/lib/geo";
+import { searchPitsNear, searchPitsInBounds } from "@/lib/geo";
 import { PitType, PitStatus, UserRole } from "@prisma/client";
 import { z } from "zod";
 
-// GET /api/pits — search pits by location
+// GET /api/pits — search pits by viewport bounds or lat/lng radius
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
 
-  const lat = parseFloat(searchParams.get("lat") ?? "33.749");
-  const lng = parseFloat(searchParams.get("lng") ?? "-84.388");
-  const radiusMiles = parseFloat(searchParams.get("radius") ?? "50");
-  const radiusMeters = radiusMiles * 1609.344;
   const pitType = searchParams.get("type") as PitType | null;
   const acceptingParam = searchParams.get("accepting");
   const state = searchParams.get("state") ?? undefined;
   const materialType = searchParams.get("material") ?? undefined;
   const operatorProvidedParam = searchParams.get("operatorProvided");
   const equipmentProvidedParam = searchParams.get("equipmentProvided");
-  const limit = parseInt(searchParams.get("limit") ?? "200");
-  const offset = parseInt(searchParams.get("offset") ?? "0");
 
-  if (!isFinite(lat) || !isFinite(lng)) {
-    return NextResponse.json({ error: "Invalid lat/lng" }, { status: 400 });
-  }
-
-  const pits = await searchPitsNear({
-    lat,
-    lng,
-    radiusMeters,
+  const filters = {
     pitType: pitType ?? undefined,
     accepting: acceptingParam === "true" ? true : acceptingParam === "false" ? false : undefined,
     state,
     materialType,
     operatorProvided: operatorProvidedParam === "true" ? true : operatorProvidedParam === "false" ? false : undefined,
     equipmentProvided: equipmentProvidedParam === "true" ? true : equipmentProvidedParam === "false" ? false : undefined,
-    limit,
-    offset,
-  });
+  };
 
+  // Prefer viewport bounds when provided — exact match to what's on screen
+  const neLat = parseFloat(searchParams.get("ne_lat") ?? "");
+  const neLng = parseFloat(searchParams.get("ne_lng") ?? "");
+  const swLat = parseFloat(searchParams.get("sw_lat") ?? "");
+  const swLng = parseFloat(searchParams.get("sw_lng") ?? "");
+
+  if (isFinite(neLat) && isFinite(neLng) && isFinite(swLat) && isFinite(swLng)) {
+    const pits = await searchPitsInBounds({ neLat, neLng, swLat, swLng, ...filters });
+    return NextResponse.json({ pits });
+  }
+
+  // Fall back to radius search (used by geolocate / external callers)
+  const lat = parseFloat(searchParams.get("lat") ?? "33.749");
+  const lng = parseFloat(searchParams.get("lng") ?? "-84.388");
+  const radiusMiles = parseFloat(searchParams.get("radius") ?? "50");
+
+  if (!isFinite(lat) || !isFinite(lng)) {
+    return NextResponse.json({ error: "Invalid lat/lng" }, { status: 400 });
+  }
+
+  const pits = await searchPitsNear({ lat, lng, radiusMeters: radiusMiles * 1609.344, ...filters });
   return NextResponse.json({ pits });
 }
 

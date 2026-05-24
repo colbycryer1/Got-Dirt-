@@ -17,9 +17,10 @@ interface Props {
 export function MapContainer({ apiKey, loggedIn = false }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
+  const markerMapRef = useRef<Map<string, google.maps.Marker>>(new Map());
   const clustererRef = useRef<MarkerClusterer | null>(null);
-  const fetchPitsRef = useRef<(lat: number, lng: number) => void>(() => {});
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchBoundsRef = useRef<(ne: google.maps.LatLng, sw: google.maps.LatLng) => void>(() => {});
   const [pits, setPits] = useState<PitSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -31,13 +32,14 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
   const [filterEquipment, setFilterEquipment] = useState(false);
   const [filterState, setFilterState] = useState("");
 
-  const fetchPits = useCallback(async (lat: number, lng: number) => {
+  const fetchBounds = useCallback(async (ne: google.maps.LatLng, sw: google.maps.LatLng) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        lat: String(lat),
-        lng: String(lng),
-        radius: String(radiusMiles),
+        ne_lat: String(ne.lat()),
+        ne_lng: String(ne.lng()),
+        sw_lat: String(sw.lat()),
+        sw_lng: String(sw.lng()),
         ...(filterType ? { type: filterType } : {}),
         ...(filterAccepting ? { accepting: filterAccepting } : {}),
         ...(filterMaterial ? { material: filterMaterial } : {}),
@@ -51,9 +53,18 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [radiusMiles, filterType, filterAccepting, filterMaterial, filterOperator, filterEquipment, filterState]);
+  }, [filterType, filterAccepting, filterMaterial, filterOperator, filterEquipment, filterState]);
 
-  useEffect(() => { fetchPitsRef.current = fetchPits; }, [fetchPits]);
+  useEffect(() => { fetchBoundsRef.current = fetchBounds; }, [fetchBounds]);
+
+  // Re-fetch when filters change using current viewport
+  useEffect(() => {
+    const map = mapInstance.current;
+    if (!map) return;
+    const bounds = map.getBounds();
+    if (!bounds) return;
+    fetchBoundsRef.current(bounds.getNorthEast(), bounds.getSouthWest());
+  }, [filterType, filterAccepting, filterMaterial, filterOperator, filterEquipment, filterState]);
 
   // Initialize Google Maps
   useEffect(() => {
@@ -76,30 +87,45 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
 
       mapInstance.current = map;
 
-      map.addListener("idle", () => {
-        const center = map.getCenter();
-        if (center) fetchPitsRef.current(center.lat(), center.lng());
+      // Fetch whenever the viewport changes — debounced so it doesn't fire on every pixel
+      map.addListener("bounds_changed", () => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+          const bounds = map.getBounds();
+          if (!bounds) return;
+          fetchBoundsRef.current(bounds.getNorthEast(), bounds.getSouthWest());
+        }, 350);
       });
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey]);
 
-  // Sync markers + clusterer when pits change
+  // Incrementally sync markers — add new pits, remove ones no longer in results
   useEffect(() => {
     const map = mapInstance.current;
     if (!map) return;
 
-    if (clustererRef.current) {
-      clustererRef.current.clearMarkers();
-      clustererRef.current.setMap(null);
-      clustererRef.current = null;
+    // Initialize clusterer once
+    if (!clustererRef.current) {
+      clustererRef.current = new MarkerClusterer({ map, markers: [] });
     }
-    markersRef.current.forEach((m) => m.setMap(null));
-    markersRef.current = [];
 
-    const newMarkers: google.maps.Marker[] = [];
+    const incomingIds = new Set(pits.map((p) => p.id));
+    const toAdd: google.maps.Marker[] = [];
+    const toRemove: google.maps.Marker[] = [];
 
+    // Remove markers no longer in results
+    markerMapRef.current.forEach((marker, id) => {
+      if (!incomingIds.has(id)) {
+        toRemove.push(marker);
+        markerMapRef.current.delete(id);
+      }
+    });
+
+    // Add markers for newly visible pits
     pits.forEach((pit, index) => {
+      if (markerMapRef.current.has(pit.id)) return;
+
       const iconUrl = pit.accepting
         ? "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(pinSvg("green"))
         : "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(pinSvg("red"));
@@ -115,12 +141,12 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
       });
 
       marker.addListener("click", () => setSelectedIndex(index));
-
-      newMarkers.push(marker);
+      markerMapRef.current.set(pit.id, marker);
+      toAdd.push(marker);
     });
 
-    markersRef.current = newMarkers;
-    clustererRef.current = new MarkerClusterer({ map, markers: newMarkers });
+    if (toRemove.length) clustererRef.current.removeMarkers(toRemove);
+    if (toAdd.length) clustererRef.current.addMarkers(toAdd);
   }, [pits]);
 
   async function handleLocationSearch(query: string): Promise<boolean> {
