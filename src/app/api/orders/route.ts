@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -18,12 +19,12 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const projectId = searchParams.get("projectId");
 
-  const where: Record<string, unknown> = {};
+  const where: Prisma.OrderWhereInput = {};
   if (session.user.role !== "ADMIN") where.buyerUserId = session.user.id;
   if (projectId) where.projectId = projectId;
 
   const orders = await prisma.order.findMany({
-    where: where as Parameters<typeof prisma.order.findMany>[0]["where"],
+    where,
     include: {
       pit:     { select: { name: true, address: true, state: true } },
       project: { select: { name: true } },
