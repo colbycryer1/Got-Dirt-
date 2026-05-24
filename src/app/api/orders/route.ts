@@ -18,8 +18,6 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const projectId = searchParams.get("projectId");
 
-  const isBuyer = session.user.role === "BUYER" || session.user.role === "CONTRACTOR";
-
   const where: Record<string, unknown> = {};
   if (session.user.role !== "ADMIN") where.buyerUserId = session.user.id;
   if (projectId) where.projectId = projectId;

@@ -132,7 +132,7 @@ async function runCOBSettlement(date: Date): Promise<SettlementResult[]> {
       }
 
       // Upsert settlement record
-      const settlement = await prisma.settlement.upsert({
+      await prisma.settlement.upsert({
         where:  { orderId_date: { orderId: order.id, date } },
         create: {
           orderId:           order.id,

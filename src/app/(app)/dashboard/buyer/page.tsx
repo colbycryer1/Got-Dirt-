@@ -3,7 +3,6 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { centsToDisplay } from "@/types";
 
 export default async function BuyerDashboardPage() {
   const session = await getServerSession(authOptions);
