@@ -1,9 +1,24 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { pitTypeLabel, centsToDisplay } from "@/types";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import SavePitButton from "@/components/pit/SavePitButton";
+
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const pit = await prisma.pit.findUnique({
+    where: { id: params.id },
+    select: { name: true, address: true, state: true, pitType: true, accepting: true },
+  });
+  if (!pit) return { title: "Pit Not Found" };
+  const type = pit.pitType === "WASTE" ? "Waste Pit" : pit.pitType === "BORROW" ? "Borrow Pit" : "Waste & Borrow Pit";
+  return {
+    title: `${pit.name} — ${type} in ${pit.state} | Got Dirt?`,
+    description: `${pit.name} is a ${type.toLowerCase()} located in ${pit.address ?? pit.state}. ${pit.accepting ? "Currently accepting material." : "Not currently accepting."} Find dirt pits near you on Got Dirt?`,
+  };
+}
 
 export default async function PitDetailPage({ params }: { params: { id: string } }) {
   const [pit, session] = await Promise.all([
@@ -13,10 +28,21 @@ export default async function PitDetailPage({ params }: { params: { id: string }
   if (!pit || pit.status === "INACTIVE") notFound();
 
   const typeLabel = pitTypeLabel(pit.pitType);
-  const statusColor = pit.accepting ? "bg-sky-100 text-sky-800" : "bg-red-100 text-red-800";
+  const statusColor = pit.accepting ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
   const statusText = pit.accepting ? "Accepting Material" : "Not Accepting";
   const isBuyer = session?.user?.role === "BUYER" || session?.user?.role === "CONTRACTOR";
   const canOrder = isBuyer && pit.accepting && pit.materialTypes.length > 0;
+
+  // Check if logged-in buyer has this pit saved
+  let isSaved = false;
+  if (session?.user?.id) {
+    try {
+      const saved = await prisma.savedPit.findUnique({
+        where: { userId_pitId: { userId: session.user.id, pitId: pit.id } },
+      });
+      isSaved = !!saved;
+    } catch { /* migration not run yet */ }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -30,14 +56,19 @@ export default async function PitDetailPage({ params }: { params: { id: string }
 
       <div className="max-w-2xl mx-auto px-6 py-10">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-          <div className="flex items-start justify-between mb-6">
+          <div className="flex items-start justify-between mb-6 gap-3">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{pit.name}</h1>
               {pit.address && <p className="text-gray-500 mt-1">{pit.address}, {pit.state}</p>}
             </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${statusColor}`}>
-              {statusText}
-            </span>
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <span className={`px-3 py-1 rounded-full text-sm font-semibold ${statusColor}`}>
+                {statusText}
+              </span>
+              {session?.user && (
+                <SavePitButton pitId={pit.id} initialSaved={isSaved} />
+              )}
+            </div>
           </div>
 
           <div className="mb-6">

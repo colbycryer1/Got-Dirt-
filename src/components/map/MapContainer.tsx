@@ -4,14 +4,16 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 import { PitSummary } from "@/types";
 import { SearchPanel } from "./SearchPanel";
+import PitBottomSheet from "./PitBottomSheet";
 
 const ATLANTA = { lat: 33.749, lng: -84.388 };
 
 interface Props {
   apiKey: string;
+  loggedIn?: boolean;
 }
 
-export function MapContainer({ apiKey }: Props) {
+export function MapContainer({ apiKey, loggedIn = false }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -19,6 +21,7 @@ export function MapContainer({ apiKey }: Props) {
   const fetchPitsRef = useRef<(lat: number, lng: number) => void>(() => {});
   const [pits, setPits] = useState<PitSummary[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedPit, setSelectedPit] = useState<PitSummary | null>(null);
   const [radiusMiles, setRadiusMiles] = useState(50);
   const [filterType, setFilterType] = useState<string>("");
   const [filterAccepting, setFilterAccepting] = useState<string>("");
@@ -107,9 +110,12 @@ export function MapContainer({ apiKey }: Props) {
       });
 
       marker.addListener("click", () => {
-        if (!infoWindowRef.current) return;
-        infoWindowRef.current.setContent(buildInfoWindowContent(pit));
-        infoWindowRef.current.open(map, marker);
+        setSelectedPit(pit);
+        // Desktop: also show info window; mobile bottom sheet handles it
+        if (window.innerWidth >= 768 && infoWindowRef.current) {
+          infoWindowRef.current.setContent(buildInfoWindowContent(pit));
+          infoWindowRef.current.open(map, marker);
+        }
       });
 
       markersRef.current.push(marker);
@@ -171,6 +177,12 @@ export function MapContainer({ apiKey }: Props) {
         onLocationSearch={handleLocationSearch}
         loading={loading}
         pitCount={pits.length}
+      />
+
+      <PitBottomSheet
+        pit={selectedPit}
+        onClose={() => setSelectedPit(null)}
+        loggedIn={loggedIn}
       />
     </div>
   );
