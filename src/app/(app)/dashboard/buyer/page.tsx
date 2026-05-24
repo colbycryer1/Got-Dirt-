@@ -64,9 +64,15 @@ export default async function BuyerDashboardPage() {
         <Link href="/" className="font-black text-black text-xl">Got Dirt?</Link>
         <div className="flex items-center gap-4 flex-wrap">
           <Link href="/dashboard/buyer/orders" className="text-sm text-gray-500 hover:text-gray-800">Orders</Link>
+          <Link href="/dashboard/buyer/haul-orders" className="text-sm text-gray-500 hover:text-gray-800">Haul Orders</Link>
           <Link href="/dashboard/buyer/invoices" className="text-sm text-gray-500 hover:text-gray-800">Invoices</Link>
           <Link href="/dashboard/buyer/saved-pits" className="text-sm text-gray-500 hover:text-gray-800">Saved Pits</Link>
-          <Link href="/dashboard/buyer/settings" className="text-sm text-gray-500 hover:text-gray-800">Integrations</Link>
+          {role === "CARRIER" && (
+            <Link href="/dashboard/buyer/carrier-profile" className="text-sm text-gray-500 hover:text-gray-800">Carrier Profile</Link>
+          )}
+          {role !== "CARRIER" && (
+            <Link href="/dashboard/buyer/settings" className="text-sm text-gray-500 hover:text-gray-800">Integrations</Link>
+          )}
           <Link href="/dashboard/buyer/account" className="text-sm text-gray-500 hover:text-gray-800">Account</Link>
           <Link href="/map" className="bg-amber-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-amber-700">
             Find Pits →
