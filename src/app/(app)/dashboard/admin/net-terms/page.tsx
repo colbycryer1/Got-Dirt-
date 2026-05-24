@@ -26,6 +26,9 @@ export default async function AdminNetTermsPage() {
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-8">
+      <div className="flex items-center gap-3 mb-2">
+        <Link href="/dashboard/admin" className="text-amber-600 text-sm font-medium hover:underline">← Admin Dashboard</Link>
+      </div>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Net Terms Accounts</h1>

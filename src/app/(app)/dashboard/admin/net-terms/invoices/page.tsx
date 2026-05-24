@@ -26,14 +26,14 @@ export default async function NetTermsInvoicesPage() {
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Net Terms Invoices</h1>
-          <p className="text-sm text-gray-500 mt-1">Open &amp; overdue invoices across all net terms accounts</p>
-        </div>
-        <Link href="/dashboard/admin/net-terms" className="text-sm text-amber-600 hover:underline">
-          ← Net Terms Accounts
-        </Link>
+      <div className="flex items-center gap-4 flex-wrap">
+        <Link href="/dashboard/admin" className="text-amber-600 text-sm font-medium hover:underline">← Admin Dashboard</Link>
+        <span className="text-gray-300">/</span>
+        <Link href="/dashboard/admin/net-terms" className="text-amber-600 text-sm font-medium hover:underline">Net Terms</Link>
+      </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Net Terms Invoices</h1>
+        <p className="text-sm text-gray-500 mt-1">Open &amp; overdue invoices across all net terms accounts</p>
       </div>
 
       {migrationPending && (
