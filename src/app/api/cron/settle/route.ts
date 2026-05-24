@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import Stripe from "stripe";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-03-31.basil" });
+import { stripe } from "@/lib/stripe";
 
 // Called by Vercel Cron at COB daily (vercel.json schedule: "0 23 * * *" = 11PM UTC)
 // Vercel sends: Authorization: Bearer CRON_SECRET
