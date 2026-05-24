@@ -47,6 +47,7 @@ export function SearchPanel({
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [minimized, setMinimized] = useState(false);
 
   async function handleSearch(e: FormEvent) {
     e.preventDefault();
@@ -63,13 +64,41 @@ export function SearchPanel({
     }
   }
 
+  if (minimized) {
+    return (
+      <button
+        onClick={() => setMinimized(false)}
+        className="absolute top-3 left-3 z-10 bg-white rounded-2xl shadow-xl px-4 py-2.5 flex items-center gap-2 hover:bg-gray-50 transition-colors"
+      >
+        <span className="font-black text-black text-sm">Got Dirt?</span>
+        <span className="text-xs text-gray-400">
+          {loading ? "…" : `${pitCount} pit${pitCount !== 1 ? "s" : ""}`}
+        </span>
+        <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+    );
+  }
+
   return (
     <div className="absolute top-3 left-3 z-10 bg-white rounded-2xl shadow-xl p-4 w-64 space-y-3">
       <div className="flex items-center justify-between">
         <span className="font-black text-black text-sm">Got Dirt?</span>
-        <span className="text-xs text-gray-400">
-          {loading ? "Loading…" : `${pitCount} pit${pitCount !== 1 ? "s" : ""}`}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">
+            {loading ? "Loading…" : `${pitCount} pit${pitCount !== 1 ? "s" : ""}`}
+          </span>
+          <button
+            onClick={() => setMinimized(true)}
+            title="Minimize"
+            className="text-gray-300 hover:text-gray-600 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* City / ZIP search */}
