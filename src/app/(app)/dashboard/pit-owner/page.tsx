@@ -64,7 +64,7 @@ export default async function PitOwnerDashboard() {
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-5 text-center">
             <p className="text-2xl font-black text-gray-900">{todayEstimatedPayout > 0 ? centsToDisplay(todayEstimatedPayout) : "—"}</p>
-            <p className="text-sm text-gray-500 mt-1">Today's Payout Est.</p>
+            <p className="text-sm text-gray-500 mt-1">Today&apos;s Payout Est.</p>
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-5 text-center">
             <p className="text-4xl font-black text-gray-900">{pits.length}</p>

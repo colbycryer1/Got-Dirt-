@@ -26,7 +26,7 @@ interface Project {
 }
 
 export default function PlaceOrderPage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const params = useParams();
   const pitId = params.id as string;
