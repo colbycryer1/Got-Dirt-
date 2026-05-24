@@ -187,7 +187,7 @@ export function SearchPanel({
       {/* Legend */}
       <div className="border-t border-gray-100 pt-2 flex gap-4 text-xs text-gray-500">
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-full bg-sky-500 inline-block" />
+          <span className="w-3 h-3 rounded-full bg-green-600 inline-block" />
           Open
         </span>
         <span className="flex items-center gap-1">

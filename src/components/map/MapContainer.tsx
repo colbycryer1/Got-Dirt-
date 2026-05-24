@@ -177,7 +177,7 @@ export function MapContainer({ apiKey }: Props) {
 }
 
 function pinSvg(color: "sky" | "red") {
-  const fill = color === "sky" ? "#0ea5e9" : "#dc2626";
+  const fill = color === "sky" ? "#16a34a" : "#dc2626";
   return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
     <path d="M16 0C9.37 0 4 5.37 4 12c0 9 12 28 12 28s12-19 12-28c0-6.63-5.37-12-12-12z" fill="${fill}"/>
     <circle cx="16" cy="12" r="5" fill="white"/>
@@ -186,7 +186,7 @@ function pinSvg(color: "sky" | "red") {
 
 function buildInfoWindowContent(pit: PitSummary): string {
   const typeLabel = pit.pitType === "WASTE" ? "Waste Pit" : pit.pitType === "BORROW" ? "Borrow Pit" : "Waste & Borrow";
-  const statusColor = pit.accepting ? "#0ea5e9" : "#dc2626";
+  const statusColor = pit.accepting ? "#16a34a" : "#dc2626";
   const statusText = pit.accepting ? "Open" : "Closed";
 
   let rates = "";
