@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -14,7 +14,7 @@ interface ConnectStatus {
   requirementsDue?: string[];
 }
 
-export default function StripeConnectPage() {
+function StripeConnectInner() {
   const { status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -148,5 +148,17 @@ export default function StripeConnectPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function StripeConnectPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <StripeConnectInner />
+    </Suspense>
   );
 }
