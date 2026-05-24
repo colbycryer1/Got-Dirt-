@@ -4,6 +4,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PitForm } from "@/components/pit/PitForm";
+import { PitType } from "@prisma/client";
 
 export default async function EditPitPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -18,7 +19,7 @@ export default async function EditPitPage({ params }: { params: { id: string } }
     state: pit.state,
     latitude: String(pit.latitude),
     longitude: String(pit.longitude),
-    pitType: pit.pitType as "WASTE" | "BORROW" | "WASTE_BORROW",
+    pitType: pit.pitType as PitType,
     accepting: pit.accepting,
     dumpRateDollars: pit.dumpRateCents ? String(pit.dumpRateCents / 100) : "",
     borrowRateDollars: pit.borrowRateCents ? String(pit.borrowRateCents / 100) : "",

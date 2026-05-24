@@ -14,15 +14,27 @@ datasource db {
 enum UserRole {
   ADMIN
   PIT_OWNER
-  CONTRACTOR // legacy — treated as BUYER in app logic
-  BUYER
-  DRIVER
+  CONTRACTOR  // legacy — treated as BUYER in app logic
+  BUYER       // Direct Buyer
+  CARRIER     // 3PL / Trucking Company
+  DRIVER      // Independent Truck Driver
 }
 
 enum PitType {
-  WASTE
-  BORROW
-  WASTE_BORROW
+  WASTE              // legacy
+  BORROW             // legacy
+  WASTE_BORROW       // legacy
+  PRIVATE_BORROW_PIT
+  QUARRY
+}
+
+enum HaulOrderStatus {
+  PENDING    // awaiting driver/carrier response
+  CONFIRMED  // accepted
+  DENIED     // declined
+  ACTIVE     // in progress
+  COMPLETED
+  CANCELLED
 }
 
 enum PitStatus {
@@ -140,6 +152,9 @@ model User {
   savedPits              SavedPit[]
   accounts               Account[]
   sessions               Session[]
+  driverProfile          DriverProfile?
+  carrierProfile         CarrierProfile?
+  buyerHaulOrders        HaulOrder[]             @relation("BuyerHaulOrders")
 
   @@index([role])
 }
@@ -230,6 +245,7 @@ model Pit {
   loadEvents   LoadEvent[]
   pitClaims    PitClaim[]
   savedByUsers SavedPit[]
+  haulOrders   HaulOrder[]
 
   @@index([state])
   @@index([accepting])
@@ -271,6 +287,7 @@ model Project {
 
   orders            Order[]
   driverAssignments DriverAssignment[]
+  haulOrders        HaulOrder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -639,4 +656,112 @@ model SavedPit {
   @@unique([userId, pitId])
   @@index([userId])
   @@index([pitId])
+}
+
+// ─── DRIVER / CARRIER / HAUL ORDER MODELS ────────────────────────────────────
+
+model DriverProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Public profile
+  bio           String? @db.Text
+  profilePublic Boolean @default(false)
+
+  // Haul details — visible to Direct Buyers only, never to CarrierProfiles
+  haulRateCents Int?    // per load
+  truckType     String? // e.g. "Super 10 Dump", "Tri-Axle Dump"
+
+  // Compliance documents (Supabase Storage URLs)
+  gdotLicenseUrl    String?
+  insuranceUrl      String?
+  additionalDocUrls String[] @default([])
+  docsVerified      Boolean  @default(false)
+
+  // Live location (driver-controlled toggle)
+  liveLocationEnabled Boolean  @default(false)
+  currentLat          Float?
+  currentLng          Float?
+  lastLocationAt      DateTime?
+
+  haulOrders HaulOrder[] @relation("DriverHaulOrders")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CarrierProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Public profile
+  companyName   String?
+  bio           String? @db.Text
+  website       String?
+  profilePublic Boolean @default(false)
+
+  // Haul rate — visible to Direct Buyers only, NEVER to DriverProfiles
+  haulRateCents Int? // per load baseline
+
+  terminals  CarrierTerminal[]
+  haulOrders HaulOrder[]       @relation("CarrierHaulOrders")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CarrierTerminal {
+  id        String         @id @default(cuid())
+  carrierId String
+  carrier   CarrierProfile @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+
+  name    String
+  address String?
+  lat     Float
+  lng     Float
+
+  createdAt DateTime @default(now())
+
+  @@index([carrierId])
+}
+
+model HaulOrder {
+  id          String @id @default(cuid())
+  buyerUserId String
+  buyer       User   @relation("BuyerHaulOrders", fields: [buyerUserId], references: [id])
+
+  // Fulfilled by a driver OR a carrier (mutually exclusive)
+  driverId  String?
+  driver    DriverProfile?  @relation("DriverHaulOrders", fields: [driverId], references: [id])
+  carrierId String?
+  carrier   CarrierProfile? @relation("CarrierHaulOrders", fields: [carrierId], references: [id])
+
+  pitId     String?
+  pit       Pit?     @relation(fields: [pitId], references: [id])
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+
+  scheduledDate       DateTime
+  loads               Int
+  haulRateCents       Int  // rate locked at order placement
+  totalEstimatedCents Int
+  depositHoldCents    Int  // partial card hold amount
+
+  stripePaymentIntentId String? @unique
+
+  status    HaulOrderStatus @default(PENDING)
+  expiresAt DateTime?       // first-come-first-served cutoff
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([buyerUserId])
+  @@index([driverId])
+  @@index([carrierId])
+  @@index([status])
+  @@index([scheduledDate])
 }

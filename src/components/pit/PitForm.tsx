@@ -42,7 +42,7 @@ const DEFAULT: PitFormData = {
   state: "GA",
   latitude: "",
   longitude: "",
-  pitType: "WASTE_BORROW",
+  pitType: "PRIVATE_BORROW_PIT",
   accepting: true,
   dumpRateDollars: "",
   borrowRateDollars: "",
@@ -171,9 +171,11 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
         <div>
           <label className={labelClass}>Pit Type *</label>
           <select required value={form.pitType} onChange={(e) => set("pitType", e.target.value as PitType)} className={inputClass}>
-            <option value="WASTE_BORROW">Waste & Borrow</option>
-            <option value="WASTE">Waste Only</option>
-            <option value="BORROW">Borrow Only</option>
+            <option value="PRIVATE_BORROW_PIT">Private Borrow Pit</option>
+            <option value="QUARRY">Quarry</option>
+            <option value="WASTE_BORROW">Waste &amp; Borrow (legacy)</option>
+            <option value="WASTE">Waste Only (legacy)</option>
+            <option value="BORROW">Borrow Only (legacy)</option>
           </select>
         </div>
 
@@ -198,7 +200,7 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
               <input type="number" step="0.01" min="0" value={form.dumpRateDollars} onChange={(e) => set("dumpRateDollars", e.target.value)} className={inputClass} placeholder="5.00" />
             </div>
           )}
-          {(form.pitType === "BORROW" || form.pitType === "WASTE_BORROW") && (
+          {(form.pitType === "BORROW" || form.pitType === "WASTE_BORROW" || form.pitType === "PRIVATE_BORROW_PIT" || form.pitType === "QUARRY") && (
             <div>
               <label className={labelClass}>Borrow Rate ($)</label>
               <input type="number" step="0.01" min="0" value={form.borrowRateDollars} onChange={(e) => set("borrowRateDollars", e.target.value)} className={inputClass} placeholder="8.00" />

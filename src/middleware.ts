@@ -21,10 +21,20 @@ export default withAuth(
       }
     }
 
-    // Buyer dashboard routes
+    // Buyer dashboard routes — BUYER, CARRIER, and legacy CONTRACTOR all use this dashboard
     if (pathname.startsWith("/dashboard/buyer")) {
-      const isBuyer = token?.role === "BUYER" || token?.role === UserRole.CONTRACTOR;
+      const isBuyer =
+        token?.role === "BUYER" ||
+        token?.role === "CARRIER" ||
+        token?.role === UserRole.CONTRACTOR;
       if (!isBuyer && token?.role !== UserRole.ADMIN) {
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
+    }
+
+    // Driver dashboard routes
+    if (pathname.startsWith("/dashboard/driver")) {
+      if (token?.role !== "DRIVER" && token?.role !== UserRole.ADMIN) {
         return NextResponse.redirect(new URL("/dashboard", req.url));
       }
     }

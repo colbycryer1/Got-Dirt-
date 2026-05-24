@@ -8,7 +8,7 @@ export default async function BuyerDashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
   const role = session.user.role;
-  if (role !== "BUYER" && role !== "CONTRACTOR") redirect("/dashboard");
+  if (role !== "BUYER" && role !== "CONTRACTOR" && role !== "CARRIER") redirect("/dashboard");
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
 

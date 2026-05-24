@@ -43,10 +43,12 @@ export default function AccountForm({ initial }: Props) {
   }
 
   const roleLabel: Record<string, string> = {
-    BUYER: "Buyer",
-    CONTRACTOR: "Contractor",
-    PIT_OWNER: "Pit Owner",
-    ADMIN: "Admin",
+    BUYER:      "Direct Buyer",
+    CARRIER:    "3PL / Trucking Company",
+    DRIVER:     "Independent Truck Driver",
+    CONTRACTOR: "Contractor (legacy)",
+    PIT_OWNER:  "Pit Owner",
+    ADMIN:      "Admin",
   };
 
   return (

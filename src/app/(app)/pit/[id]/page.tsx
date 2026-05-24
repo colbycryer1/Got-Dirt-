@@ -30,7 +30,7 @@ export default async function PitDetailPage({ params }: { params: { id: string }
   const typeLabel = pitTypeLabel(pit.pitType);
   const statusColor = pit.accepting ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
   const statusText = pit.accepting ? "Accepting Material" : "Not Accepting";
-  const isBuyer = session?.user?.role === "BUYER" || session?.user?.role === "CONTRACTOR";
+  const isBuyer = session?.user?.role === "BUYER" || session?.user?.role === "CARRIER" || session?.user?.role === "CONTRACTOR";
   const canOrder = isBuyer && pit.accepting && pit.materialTypes.length > 0;
 
   // Check if logged-in buyer has this pit saved

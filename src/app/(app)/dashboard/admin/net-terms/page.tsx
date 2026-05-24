@@ -19,7 +19,7 @@ export default async function AdminNetTermsPage() {
   }
 
   const buyers = await prisma.user.findMany({
-    where: { role: { in: ["BUYER", "CONTRACTOR"] } },
+    where: { role: { in: ["BUYER", "CARRIER", "CONTRACTOR"] } },
     select: { id: true, email: true, name: true, company: true },
     orderBy: { email: "asc" },
   });

@@ -9,6 +9,6 @@ export default async function DashboardRedirect() {
   if (session.user.role === "ADMIN") redirect("/dashboard/admin");
   if (session.user.role === "PIT_OWNER") redirect("/dashboard/pit-owner");
   if (session.user.role === "DRIVER") redirect("/dashboard/driver");
-  // BUYER and legacy CONTRACTOR both go to buyer dashboard
+  // BUYER, CARRIER, and legacy CONTRACTOR all share the buyer dashboard
   redirect("/dashboard/buyer");
 }

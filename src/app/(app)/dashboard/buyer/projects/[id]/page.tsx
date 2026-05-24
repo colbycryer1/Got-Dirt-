@@ -8,7 +8,7 @@ import { centsToDisplay } from "@/types";
 export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
-  const isBuyer = session.user.role === "BUYER" || session.user.role === "CONTRACTOR";
+  const isBuyer = session.user.role === "BUYER" || session.user.role === "CARRIER" || session.user.role === "CONTRACTOR";
   if (!isBuyer && session.user.role !== "ADMIN") redirect("/dashboard");
 
   const project = await prisma.project.findUnique({

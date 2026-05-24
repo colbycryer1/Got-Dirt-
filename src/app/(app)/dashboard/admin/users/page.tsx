@@ -8,17 +8,19 @@ import { UserRole } from "@prisma/client";
 const ROLE_LABELS: Record<string, string> = {
   ADMIN:      "Admin",
   PIT_OWNER:  "Pit Owner",
-  BUYER:      "Buyer",
+  BUYER:      "Direct Buyer",
+  CARRIER:    "3PL / Trucking Co.",
+  DRIVER:     "Indep. Truck Driver",
   CONTRACTOR: "Buyer (legacy)",
-  DRIVER:     "Driver",
 };
 
 const ROLE_COLORS: Record<string, string> = {
   ADMIN:      "bg-purple-100 text-purple-700",
   PIT_OWNER:  "bg-amber-100 text-amber-700",
   BUYER:      "bg-sky-100 text-sky-700",
-  CONTRACTOR: "bg-sky-100 text-sky-600",
+  CARRIER:    "bg-blue-100 text-blue-700",
   DRIVER:     "bg-stone-100 text-stone-700",
+  CONTRACTOR: "bg-sky-100 text-sky-600",
 };
 
 export default async function AdminUsersPage() {

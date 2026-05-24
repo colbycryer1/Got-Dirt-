@@ -29,7 +29,7 @@ export async function GET(
 }
 
 // Roles a user can self-assign during onboarding
-const SELF_ASSIGNABLE_ROLES: string[] = ["BUYER", "PIT_OWNER", "CONTRACTOR"];
+const SELF_ASSIGNABLE_ROLES: string[] = ["BUYER", "CARRIER", "DRIVER", "PIT_OWNER", "CONTRACTOR"];
 
 const updateSchema = z.object({
   name:    z.string().optional(),

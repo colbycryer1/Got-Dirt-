@@ -7,7 +7,7 @@ import IntegrationCard from "./IntegrationCard";
 export default async function BuyerSettingsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
-  const isBuyer = session.user.role === "BUYER" || session.user.role === "CONTRACTOR";
+  const isBuyer = session.user.role === "BUYER" || session.user.role === "CARRIER" || session.user.role === "CONTRACTOR";
   if (!isBuyer && session.user.role !== "ADMIN") redirect("/dashboard");
 
   let connections: Awaited<ReturnType<typeof fetchConnections>> = [];

@@ -81,9 +81,17 @@ export function centsToDisplay(cents: number): string {
 
 export function pitTypeLabel(type: PitType): string {
   switch (type) {
-    case "WASTE": return "Waste Pit";
-    case "BORROW": return "Borrow Pit";
-    case "WASTE_BORROW": return "Waste & Borrow Pit";
-    default: return type;
+    case "WASTE":              return "Waste Pit";
+    case "BORROW":             return "Borrow Pit";
+    case "WASTE_BORROW":       return "Waste & Borrow Pit";
+    case "PRIVATE_BORROW_PIT": return "Private Borrow Pit";
+    case "QUARRY":             return "Quarry";
+    default:                   return type;
   }
+}
+
+export const BUYER_ROLES = ["BUYER", "CONTRACTOR", "CARRIER"] as const;
+export type BuyerRole = typeof BUYER_ROLES[number];
+export function isBuyerRole(role: string): role is BuyerRole {
+  return BUYER_ROLES.includes(role as BuyerRole);
 }
