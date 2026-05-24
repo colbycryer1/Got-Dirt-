@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
+import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { PitSummary } from "@/types";
 import { SearchPanel } from "./SearchPanel";
 import PitBottomSheet from "./PitBottomSheet";
@@ -17,6 +18,7 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
+  const clustererRef = useRef<MarkerClusterer | null>(null);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const fetchPitsRef = useRef<(lat: number, lng: number) => void>(() => {});
   const [pits, setPits] = useState<PitSummary[]>([]);
@@ -28,6 +30,7 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
   const [filterMaterial, setFilterMaterial] = useState<string>("");
   const [filterOperator, setFilterOperator] = useState(false);
   const [filterEquipment, setFilterEquipment] = useState(false);
+  const [filterState, setFilterState] = useState("");
 
   const fetchPits = useCallback(async (lat: number, lng: number) => {
     setLoading(true);
@@ -41,6 +44,7 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
         ...(filterMaterial ? { material: filterMaterial } : {}),
         ...(filterOperator ? { operatorProvided: "true" } : {}),
         ...(filterEquipment ? { equipmentProvided: "true" } : {}),
+        ...(filterState ? { state: filterState } : {}),
       });
       const res = await fetch(`/api/pits?${params}`);
       const data = await res.json();
@@ -48,7 +52,7 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [radiusMiles, filterType, filterAccepting, filterMaterial, filterOperator, filterEquipment]);
+  }, [radiusMiles, filterType, filterAccepting, filterMaterial, filterOperator, filterEquipment, filterState]);
 
   // Keep ref current so the idle listener always calls the latest fetchPits
   useEffect(() => { fetchPitsRef.current = fetchPits; }, [fetchPits]);
@@ -84,23 +88,29 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey]);
 
-  // Sync markers when pits change
+  // Sync markers + clusterer when pits change
   useEffect(() => {
     const map = mapInstance.current;
     if (!map) return;
 
-    // Clear old markers
+    // Tear down previous clusterer and markers
+    if (clustererRef.current) {
+      clustererRef.current.clearMarkers();
+      clustererRef.current.setMap(null);
+      clustererRef.current = null;
+    }
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
 
+    const newMarkers: google.maps.Marker[] = [];
+
     pits.forEach((pit) => {
       const iconUrl = pit.accepting
-        ? "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(pinSvg("sky"))
+        ? "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(pinSvg("green"))
         : "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(pinSvg("red"));
 
       const marker = new google.maps.Marker({
         position: { lat: pit.latitude, lng: pit.longitude },
-        map,
         title: pit.name,
         icon: {
           url: iconUrl,
@@ -111,15 +121,17 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
 
       marker.addListener("click", () => {
         setSelectedPit(pit);
-        // Desktop: also show info window; mobile bottom sheet handles it
         if (window.innerWidth >= 768 && infoWindowRef.current) {
           infoWindowRef.current.setContent(buildInfoWindowContent(pit));
           infoWindowRef.current.open(map, marker);
         }
       });
 
-      markersRef.current.push(marker);
+      newMarkers.push(marker);
     });
+
+    markersRef.current = newMarkers;
+    clustererRef.current = new MarkerClusterer({ map, markers: newMarkers });
   }, [pits]);
 
   async function handleLocationSearch(query: string): Promise<boolean> {
@@ -173,6 +185,8 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
         onFilterOperatorChange={setFilterOperator}
         filterEquipment={filterEquipment}
         onFilterEquipmentChange={setFilterEquipment}
+        filterState={filterState}
+        onFilterStateChange={setFilterState}
         onGeolocate={geolocate}
         onLocationSearch={handleLocationSearch}
         loading={loading}
@@ -188,8 +202,8 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
   );
 }
 
-function pinSvg(color: "sky" | "red") {
-  const fill = color === "sky" ? "#16a34a" : "#dc2626";
+function pinSvg(color: "green" | "red") {
+  const fill = color === "green" ? "#16a34a" : "#dc2626";
   return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
     <path d="M16 0C9.37 0 4 5.37 4 12c0 9 12 28 12 28s12-19 12-28c0-6.63-5.37-12-12-12z" fill="${fill}"/>
     <circle cx="16" cy="12" r="5" fill="white"/>

@@ -16,6 +16,8 @@ interface Props {
   onFilterOperatorChange: (v: boolean) => void;
   filterEquipment: boolean;
   onFilterEquipmentChange: (v: boolean) => void;
+  filterState: string;
+  onFilterStateChange: (v: string) => void;
   onGeolocate: () => void;
   onLocationSearch: (query: string) => Promise<boolean>;
   loading: boolean;
@@ -35,6 +37,8 @@ export function SearchPanel({
   onFilterOperatorChange,
   filterEquipment,
   onFilterEquipmentChange,
+  filterState,
+  onFilterStateChange,
   onGeolocate,
   onLocationSearch,
   loading,
@@ -162,6 +166,21 @@ export function SearchPanel({
         </select>
       </div>
 
+      {/* State filter */}
+      <div>
+        <label className="text-xs text-gray-500 block mb-1">State</label>
+        <select
+          value={filterState}
+          onChange={(e) => onFilterStateChange(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+        >
+          <option value="">All States</option>
+          {US_STATES.map(([abbr, name]) => (
+            <option key={abbr} value={abbr}>{name}</option>
+          ))}
+        </select>
+      </div>
+
       {/* Operator / Equipment checkboxes */}
       <div className="space-y-1.5">
         <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
@@ -198,3 +217,19 @@ export function SearchPanel({
     </div>
   );
 }
+
+const US_STATES: [string, string][] = [
+  ["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["AR","Arkansas"],
+  ["CA","California"],["CO","Colorado"],["CT","Connecticut"],["DE","Delaware"],
+  ["FL","Florida"],["GA","Georgia"],["HI","Hawaii"],["ID","Idaho"],
+  ["IL","Illinois"],["IN","Indiana"],["IA","Iowa"],["KS","Kansas"],
+  ["KY","Kentucky"],["LA","Louisiana"],["ME","Maine"],["MD","Maryland"],
+  ["MA","Massachusetts"],["MI","Michigan"],["MN","Minnesota"],["MS","Mississippi"],
+  ["MO","Missouri"],["MT","Montana"],["NE","Nebraska"],["NV","Nevada"],
+  ["NH","New Hampshire"],["NJ","New Jersey"],["NM","New Mexico"],["NY","New York"],
+  ["NC","North Carolina"],["ND","North Dakota"],["OH","Ohio"],["OK","Oklahoma"],
+  ["OR","Oregon"],["PA","Pennsylvania"],["RI","Rhode Island"],["SC","South Carolina"],
+  ["SD","South Dakota"],["TN","Tennessee"],["TX","Texas"],["UT","Utah"],
+  ["VT","Vermont"],["VA","Virginia"],["WA","Washington"],["WV","West Virginia"],
+  ["WI","Wisconsin"],["WY","Wyoming"],
+];

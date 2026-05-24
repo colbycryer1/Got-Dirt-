@@ -62,6 +62,79 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
   await send(opts.to, opts.subject, opts.html);
 }
 
+export async function sendOrderConfirmationBuyer(opts: {
+  buyerEmail: string;
+  buyerName: string | null;
+  pitName: string;
+  pitAddress: string | null;
+  date: string;
+  estimatedLoads: number | null;
+  orderId: string;
+}) {
+  const { buyerEmail, buyerName, pitName, pitAddress, date, estimatedLoads, orderId } = opts;
+  await send(
+    buyerEmail,
+    `Got Dirt? — Order confirmed at ${pitName}`,
+    `<p>Hi ${buyerName ?? "there"},</p>
+     <p>Your order at <strong>${pitName}</strong> has been confirmed.</p>
+     <ul>
+       <li>Location: <strong>${pitAddress ?? "—"}</strong></li>
+       <li>Scheduled date: <strong>${date}</strong></li>
+       ${estimatedLoads ? `<li>Estimated loads: <strong>${estimatedLoads}</strong></li>` : ""}
+       <li>Order ID: <code>${orderId}</code></li>
+     </ul>
+     <p>The pit operator will begin logging loads on the day of your order. You will receive a daily settlement summary each evening.</p>
+     <p>Thank you for using Got Dirt?</p>`
+  );
+}
+
+export async function sendPaymentReceiptBuyer(opts: {
+  buyerEmail: string;
+  buyerName: string | null;
+  pitName: string;
+  amountCents: number;
+  transactionId: string;
+  invoiceNumber: string;
+}) {
+  const { buyerEmail, buyerName, pitName, amountCents, transactionId, invoiceNumber } = opts;
+  const dollars = (amountCents / 100).toFixed(2);
+  await send(
+    buyerEmail,
+    `Got Dirt? — Payment receipt ${invoiceNumber}`,
+    `<p>Hi ${buyerName ?? "there"},</p>
+     <p>Your payment for <strong>${pitName}</strong> has been processed successfully.</p>
+     <ul>
+       <li>Invoice: <strong>${invoiceNumber}</strong></li>
+       <li>Amount charged: <strong>$${dollars}</strong></li>
+       <li>Transaction ID: <code>${transactionId}</code></li>
+     </ul>
+     <p>You can download your invoice from the Got Dirt? dashboard under Invoices.</p>
+     <p>Thank you for using Got Dirt?</p>`
+  );
+}
+
+export async function sendPaymentReceivedPitOwner(opts: {
+  ownerEmail: string;
+  ownerName: string | null;
+  pitName: string;
+  payoutCents: number;
+  invoiceNumber: string;
+}) {
+  const { ownerEmail, ownerName, pitName, payoutCents, invoiceNumber } = opts;
+  const dollars = (payoutCents / 100).toFixed(2);
+  await send(
+    ownerEmail,
+    `Got Dirt? — Payout initiated for ${pitName}`,
+    `<p>Hi ${ownerName ?? "there"},</p>
+     <p>A payment has been received for <strong>${pitName}</strong> and your payout is on its way.</p>
+     <ul>
+       <li>Invoice: <strong>${invoiceNumber}</strong></li>
+       <li>Your payout: <strong>$${dollars}</strong></li>
+     </ul>
+     <p>Transfers typically arrive in 2 business days via Stripe Express. Thank you for using Got Dirt?</p>`
+  );
+}
+
 export async function sendNewOrderPitOwner(opts: {
   ownerEmail: string;
   ownerName: string | null;

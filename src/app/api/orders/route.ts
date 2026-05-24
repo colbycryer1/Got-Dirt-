@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { sendNewOrderPitOwner } from "@/lib/email";
+import { sendNewOrderPitOwner, sendOrderConfirmationBuyer } from "@/lib/email";
 
 const createSchema = z.object({
   projectId:     z.string().cuid(),
@@ -89,16 +89,30 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Notify pit owner of new order
+  // Notify pit owner of new order, and send confirmation to buyer
+  const buyer = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { email: true, name: true, company: true },
+  });
   if (pit.owner?.email) {
-    const buyer = await prisma.user.findUnique({ where: { id: session.user.id }, select: { company: true } });
     void sendNewOrderPitOwner({
-      ownerEmail:  pit.owner.email,
-      ownerName:   pit.owner.name,
-      pitName:     pit.name,
+      ownerEmail:   pit.owner.email,
+      ownerName:    pit.owner.name,
+      pitName:      pit.name,
       buyerCompany: buyer?.company ?? null,
       materialType: "TBD",
       date,
+    });
+  }
+  if (buyer?.email) {
+    void sendOrderConfirmationBuyer({
+      buyerEmail:     buyer.email,
+      buyerName:      buyer.name,
+      pitName:        pit.name,
+      pitAddress:     null,
+      date,
+      estimatedLoads: estimatedLoads ?? null,
+      orderId:        order.id,
     });
   }
 

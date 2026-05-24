@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { TransactionStatus } from "@prisma/client";
+import { sendPaymentReceiptBuyer, sendPaymentReceivedPitOwner } from "@/lib/email";
 import Stripe from "stripe";
 
 export async function POST(req: NextRequest) {
@@ -25,6 +26,10 @@ export async function POST(req: NextRequest) {
 
       const transaction = await prisma.transaction.findUnique({
         where: { id: transactionId },
+        include: {
+          contractor: { select: { email: true, name: true } },
+          pit: { select: { name: true, owner: { select: { email: true, name: true } } } },
+        },
       });
       if (!transaction || transaction.status !== TransactionStatus.PENDING) break;
 
@@ -58,6 +63,28 @@ export async function POST(req: NextRequest) {
             },
           }),
         ]);
+
+        // Fire-and-forget receipt emails
+        const pitName = transaction.pit?.name ?? "Pit";
+        if (transaction.contractor?.email) {
+          void sendPaymentReceiptBuyer({
+            buyerEmail:    transaction.contractor.email,
+            buyerName:     transaction.contractor.name,
+            pitName,
+            amountCents:   transaction.subtotalCents,
+            transactionId,
+            invoiceNumber,
+          });
+        }
+        if (transaction.pit?.owner?.email) {
+          void sendPaymentReceivedPitOwner({
+            ownerEmail:  transaction.pit.owner.email,
+            ownerName:   transaction.pit.owner.name,
+            pitName,
+            payoutCents: transaction.ownerPayoutCents,
+            invoiceNumber,
+          });
+        }
       } catch (err) {
         console.error("Transfer failed:", err);
         await prisma.transaction.update({
