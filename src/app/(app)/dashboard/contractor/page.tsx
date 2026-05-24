@@ -19,7 +19,7 @@ export default async function ContractorDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="font-extrabold text-black text-xl">Got Dirt?</Link>
+        <Link href="/" className="font-black text-black text-xl">Got Dirt?</Link>
         <div className="flex gap-4 text-sm">
           <Link href="/map" className="text-gray-600 hover:text-gray-900">Map</Link>
         </div>
@@ -48,7 +48,7 @@ export default async function ContractorDashboard() {
                 <div className="text-right">
                   <p className="font-bold text-gray-900">{centsToDisplay(tx.totalChargeCents)}</p>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                    tx.status === "SUCCEEDED" ? "bg-green-100 text-green-700" :
+                    tx.status === "SUCCEEDED" ? "bg-sky-100 text-sky-700" :
                     tx.status === "FAILED" ? "bg-red-100 text-red-700" :
                     "bg-yellow-100 text-yellow-700"
                   }`}>

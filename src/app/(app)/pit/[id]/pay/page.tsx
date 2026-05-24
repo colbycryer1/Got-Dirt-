@@ -72,7 +72,7 @@ export default function PayPage({ params }: { params: { id: string } }) {
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center gap-4">
         <Link href={`/pit/${params.id}`} className="text-amber-600 text-sm font-medium">← Back</Link>
-        <span className="font-extrabold text-black text-lg">Got Dirt?</span>
+        <span className="font-black text-black text-lg">Got Dirt?</span>
       </nav>
 
       <div className="max-w-lg mx-auto px-6 py-10 space-y-6">

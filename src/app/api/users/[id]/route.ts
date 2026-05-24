@@ -28,11 +28,14 @@ export async function GET(
   return NextResponse.json({ user });
 }
 
+// Roles a user can self-assign during onboarding
+const SELF_ASSIGNABLE_ROLES: string[] = ["BUYER", "PIT_OWNER", "CONTRACTOR"];
+
 const updateSchema = z.object({
-  name: z.string().optional(),
-  phone: z.string().optional(),
+  name:    z.string().optional(),
+  phone:   z.string().optional(),
   company: z.string().optional(),
-  role: z.nativeEnum(UserRole).optional(),
+  role:    z.nativeEnum(UserRole).optional(),
 });
 
 export async function PATCH(
@@ -50,9 +53,11 @@ export async function PATCH(
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  // Only admins can change roles
+  // Non-admins can only self-assign onboarding roles
   if (parsed.data.role && !isAdmin) {
-    delete parsed.data.role;
+    if (!SELF_ASSIGNABLE_ROLES.includes(parsed.data.role)) {
+      delete parsed.data.role;
+    }
   }
 
   const user = await prisma.user.update({

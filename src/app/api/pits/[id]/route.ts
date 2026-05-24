@@ -15,23 +15,30 @@ export async function GET(
 }
 
 const updatePitSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
-  address: z.string().optional(),
-  state: z.string().optional(),
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
-  pitType: z.nativeEnum(PitType).optional(),
-  accepting: z.boolean().optional(),
-  status: z.nativeEnum(PitStatus).optional(),
-  dumpRateCents: z.number().int().positive().optional(),
-  borrowRateCents: z.number().int().positive().optional(),
-  hasTopsoil: z.boolean().optional(),
+  name:             z.string().min(1).max(200).optional(),
+  address:          z.string().optional(),
+  state:            z.string().optional(),
+  latitude:         z.number().min(-90).max(90).optional(),
+  longitude:        z.number().min(-180).max(180).optional(),
+  pitType:          z.nativeEnum(PitType).optional(),
+  accepting:        z.boolean().optional(),
+  status:           z.nativeEnum(PitStatus).optional(),
+  dumpRateCents:    z.number().int().positive().optional(),
+  borrowRateCents:  z.number().int().positive().optional(),
+  hasTopsoil:       z.boolean().optional(),
   topsoilRateCents: z.number().int().positive().optional(),
-  contactName: z.string().optional(),
+  operatorProvided:  z.boolean().optional(),
+  equipmentProvided: z.boolean().optional(),
+  equipmentNotes:    z.string().optional(),
+  hoursOpen:         z.string().optional(),
+  hoursClose:        z.string().optional(),
+  // geofenceRadiusMeters — admin only, handled below
+  contactName:  z.string().optional(),
   contactPhone: z.string().optional(),
   contactEmail: z.string().email().optional(),
-  notes: z.string().optional(),
+  notes:        z.string().optional(),
   materialTypes: z.array(z.string()).optional(),
+  geofenceRadiusMeters: z.number().int().positive().optional(),
 });
 
 export async function PATCH(
@@ -58,8 +65,11 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Non-admins cannot change status (soft delete)
-  if (!isAdmin) delete parsed.data.status;
+  // Non-admins cannot change status or geofence radius
+  if (!isAdmin) {
+    delete parsed.data.status;
+    delete parsed.data.geofenceRadiusMeters;
+  }
 
   const updated = await prisma.pit.update({
     where: { id: params.id },

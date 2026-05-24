@@ -35,7 +35,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <Link href="/" className="text-2xl font-extrabold text-black">Got Dirt?</Link>
+          <Link href="/" className="text-2xl font-black text-black">Got Dirt?</Link>
           <p className="text-gray-500 mt-2">Sign in to your account</p>
         </div>
 

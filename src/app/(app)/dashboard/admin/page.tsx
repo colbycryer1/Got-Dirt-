@@ -24,7 +24,7 @@ export default async function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <span className="font-extrabold text-black text-xl">Got Dirt? Admin</span>
+        <span className="font-black text-black text-xl">Got Dirt? Admin</span>
         <Link href="/map" className="text-sm text-gray-500 hover:text-gray-800">View Map</Link>
       </nav>
 

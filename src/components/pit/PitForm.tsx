@@ -16,6 +16,11 @@ interface PitFormData {
   borrowRateDollars: string;
   hasTopsoil: boolean;
   topsoilRateDollars: string;
+  operatorProvided: boolean;
+  equipmentProvided: boolean;
+  equipmentNotes: string;
+  hoursOpen: string;
+  hoursClose: string;
   contactName: string;
   contactPhone: string;
   contactEmail: string;
@@ -41,6 +46,11 @@ const DEFAULT: PitFormData = {
   borrowRateDollars: "",
   hasTopsoil: false,
   topsoilRateDollars: "",
+  operatorProvided: false,
+  equipmentProvided: false,
+  equipmentNotes: "",
+  hoursOpen: "",
+  hoursClose: "",
   contactName: "",
   contactPhone: "",
   contactEmail: "",
@@ -93,10 +103,15 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
       borrowRateCents: form.borrowRateDollars ? Math.round(parseFloat(form.borrowRateDollars) * 100) : undefined,
       hasTopsoil: form.hasTopsoil,
       topsoilRateCents: form.topsoilRateDollars ? Math.round(parseFloat(form.topsoilRateDollars) * 100) : undefined,
-      contactName: form.contactName || undefined,
+      operatorProvided:  form.operatorProvided,
+      equipmentProvided: form.equipmentProvided,
+      equipmentNotes:    form.equipmentNotes || undefined,
+      hoursOpen:         form.hoursOpen || undefined,
+      hoursClose:        form.hoursClose || undefined,
+      contactName:  form.contactName || undefined,
       contactPhone: form.contactPhone || undefined,
       contactEmail: form.contactEmail || undefined,
-      notes: form.notes || undefined,
+      notes:        form.notes || undefined,
       materialTypes: form.materialTypes,
     };
 
@@ -203,6 +218,47 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
       <div className="flex items-center gap-3">
         <input type="checkbox" id="accepting" checked={form.accepting} onChange={(e) => set("accepting", e.target.checked)} className="w-4 h-4 accent-amber-600" />
         <label htmlFor="accepting" className="text-sm font-medium text-gray-700">Open — currently accepting material (green pin on map)</label>
+      </div>
+
+      {/* Operator & Equipment */}
+      <div className="border-t border-gray-100 pt-6">
+        <h3 className="text-sm font-semibold text-gray-800 mb-4">Operator & Equipment</h3>
+        <div className="space-y-3">
+          <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
+            <input type="checkbox" checked={form.operatorProvided} onChange={(e) => set("operatorProvided", e.target.checked)} className="w-4 h-4 accent-amber-600" />
+            <span><span className="font-medium">Operator Provided</span> — onsite pit operator included</span>
+          </label>
+          <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
+            <input type="checkbox" checked={form.equipmentProvided} onChange={(e) => set("equipmentProvided", e.target.checked)} className="w-4 h-4 accent-amber-600" />
+            <span><span className="font-medium">Equipment Provided</span> — loading equipment on site</span>
+          </label>
+          {form.equipmentProvided && (
+            <div>
+              <label className={labelClass}>Equipment Notes</label>
+              <input
+                value={form.equipmentNotes}
+                onChange={(e) => set("equipmentNotes", e.target.value)}
+                className={inputClass}
+                placeholder="e.g. Excavator + D6 dozer on site"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Operating Hours */}
+      <div className="border-t border-gray-100 pt-6">
+        <h3 className="text-sm font-semibold text-gray-800 mb-4">Operating Hours (optional)</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Open</label>
+            <input type="time" value={form.hoursOpen} onChange={(e) => set("hoursOpen", e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Close</label>
+            <input type="time" value={form.hoursClose} onChange={(e) => set("hoursClose", e.target.value)} className={inputClass} />
+          </div>
+        </div>
       </div>
 
       {/* Material Types */}

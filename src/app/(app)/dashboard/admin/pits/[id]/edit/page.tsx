@@ -24,6 +24,11 @@ export default async function EditPitPage({ params }: { params: { id: string } }
     borrowRateDollars: pit.borrowRateCents ? String(pit.borrowRateCents / 100) : "",
     hasTopsoil: pit.hasTopsoil,
     topsoilRateDollars: pit.topsoilRateCents ? String(pit.topsoilRateCents / 100) : "",
+    operatorProvided:  pit.operatorProvided,
+    equipmentProvided: pit.equipmentProvided,
+    equipmentNotes:    pit.equipmentNotes ?? "",
+    hoursOpen:         pit.hoursOpen ?? "",
+    hoursClose:        pit.hoursClose ?? "",
     contactName: pit.contactName ?? "",
     contactPhone: pit.contactPhone ?? "",
     contactEmail: pit.contactEmail ?? "",
@@ -35,7 +40,7 @@ export default async function EditPitPage({ params }: { params: { id: string } }
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center gap-4">
         <Link href="/dashboard/admin/pits" className="text-amber-600 text-sm font-medium">← All Pits</Link>
-        <span className="font-extrabold text-black text-lg">Got Dirt?</span>
+        <span className="font-black text-black text-lg">Got Dirt?</span>
       </nav>
       <div className="max-w-3xl mx-auto px-6 py-10">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Edit Pit</h1>

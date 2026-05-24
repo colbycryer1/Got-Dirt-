@@ -20,7 +20,7 @@ export default async function PitOwnerPits() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="font-extrabold text-black text-xl">Got Dirt?</Link>
+        <Link href="/" className="font-black text-black text-xl">Got Dirt?</Link>
         <Link
           href="/dashboard/pit-owner/pits/new"
           className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700"

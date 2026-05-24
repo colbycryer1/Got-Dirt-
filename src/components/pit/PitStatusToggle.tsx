@@ -28,11 +28,11 @@ export function PitStatusToggle({ pitId, initialAccepting }: Props) {
       disabled={loading}
       className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors ${
         accepting
-          ? "bg-green-100 text-green-700 hover:bg-green-200"
+          ? "bg-sky-100 text-sky-700 hover:bg-sky-200"
           : "bg-red-100 text-red-700 hover:bg-red-200"
       } disabled:opacity-50`}
     >
-      <span className={`w-2 h-2 rounded-full ${accepting ? "bg-green-500" : "bg-red-500"}`} />
+      <span className={`w-2 h-2 rounded-full ${accepting ? "bg-sky-500" : "bg-red-500"}`} />
       {loading ? "…" : accepting ? "Open" : "Closed"}
     </button>
   );

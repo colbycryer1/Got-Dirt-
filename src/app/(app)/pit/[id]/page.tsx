@@ -8,7 +8,7 @@ export default async function PitDetailPage({ params }: { params: { id: string }
   if (!pit || pit.status === "INACTIVE") notFound();
 
   const typeLabel = pitTypeLabel(pit.pitType);
-  const statusColor = pit.accepting ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
+  const statusColor = pit.accepting ? "bg-sky-100 text-sky-800" : "bg-red-100 text-red-800";
   const statusText = pit.accepting ? "Accepting Material" : "Not Accepting";
 
   return (
@@ -18,7 +18,7 @@ export default async function PitDetailPage({ params }: { params: { id: string }
           ← Back to Map
         </Link>
         <span className="text-gray-300">|</span>
-        <Link href="/" className="text-xl font-extrabold text-black">Got Dirt?</Link>
+        <Link href="/" className="text-xl font-black text-black">Got Dirt?</Link>
       </nav>
 
       <div className="max-w-2xl mx-auto px-6 py-10">

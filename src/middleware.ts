@@ -21,6 +21,21 @@ export default withAuth(
       }
     }
 
+    // Buyer dashboard routes
+    if (pathname.startsWith("/dashboard/buyer")) {
+      const isBuyer = token?.role === "BUYER" || token?.role === UserRole.CONTRACTOR;
+      if (!isBuyer && token?.role !== UserRole.ADMIN) {
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
+    }
+
+    // Operator routes — pit owners and admins
+    if (pathname.startsWith("/operator")) {
+      if (token?.role !== UserRole.PIT_OWNER && token?.role !== UserRole.ADMIN) {
+        return NextResponse.redirect(new URL("/login", req.url));
+      }
+    }
+
     return NextResponse.next();
   },
   {
@@ -43,6 +58,7 @@ export default withAuth(
         if (pathname.startsWith("/api/pits/") && req.method === "GET") return true;
         if (pathname === "/api/settings" && req.method === "GET") return true;
         if (pathname.startsWith("/api/payments/webhook")) return true;
+        if (pathname.startsWith("/api/cron/")) return true; // protected by CRON_SECRET header, not auth
 
         // Everything else requires a session token
         return !!token;

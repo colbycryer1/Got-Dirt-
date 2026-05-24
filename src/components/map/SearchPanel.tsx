@@ -54,7 +54,7 @@ export function SearchPanel({
   return (
     <div className="absolute top-3 left-3 z-10 bg-white rounded-2xl shadow-xl p-4 w-64 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="font-extrabold text-black text-sm">Got Dirt?</span>
+        <span className="font-black text-black text-sm">Got Dirt?</span>
         <span className="text-xs text-gray-400">
           {loading ? "Loading…" : `${pitCount} pit${pitCount !== 1 ? "s" : ""}`}
         </span>
@@ -157,7 +157,7 @@ export function SearchPanel({
       {/* Legend */}
       <div className="border-t border-gray-100 pt-2 flex gap-4 text-xs text-gray-500">
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-full bg-green-600 inline-block" />
+          <span className="w-3 h-3 rounded-full bg-sky-500 inline-block" />
           Open
         </span>
         <span className="flex items-center gap-1">

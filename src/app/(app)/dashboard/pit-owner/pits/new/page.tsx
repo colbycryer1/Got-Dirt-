@@ -14,7 +14,7 @@ export default async function NewPitPage() {
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center gap-4">
         <Link href="/dashboard/pit-owner/pits" className="text-amber-600 text-sm font-medium">← My Pits</Link>
-        <span className="font-extrabold text-black text-lg">Got Dirt?</span>
+        <span className="font-black text-black text-lg">Got Dirt?</span>
       </nav>
       <div className="max-w-3xl mx-auto px-6 py-10">
         <h1 className="text-2xl font-bold text-gray-900 mb-8">Add New Pit</h1>

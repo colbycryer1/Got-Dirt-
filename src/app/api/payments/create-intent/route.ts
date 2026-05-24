@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
       transactionType,
       loads: String(loads),
     },
-    description: `Got Dirt — ${pit.name} (${transactionType} × ${loads} loads)`,
+    description: `Got Dirt? — ${pit.name} (${transactionType} × ${loads} loads)`,
   });
 
   await prisma.transaction.update({

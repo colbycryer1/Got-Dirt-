@@ -12,7 +12,7 @@ export default async function AdminUploadPage() {
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center gap-4">
         <Link href="/dashboard/admin" className="text-amber-600 text-sm font-medium">← Admin</Link>
-        <span className="font-extrabold text-black text-lg">Got Dirt?</span>
+        <span className="font-black text-black text-lg">Got Dirt?</span>
       </nav>
       <div className="max-w-2xl mx-auto px-6 py-10">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Import Pits from KMZ</h1>

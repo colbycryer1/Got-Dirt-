@@ -9,15 +9,15 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  async function selectRole(role: "CONTRACTOR" | "PIT_OWNER") {
+  async function selectRole(role: "BUYER" | "PIT_OWNER") {
     setLoading(true);
     await fetch(`/api/users/${session?.user.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role }),
     });
-    await update(); // Refresh JWT session
-    router.push(role === "PIT_OWNER" ? "/dashboard/pit-owner" : "/map");
+    await update();
+    router.push(role === "PIT_OWNER" ? "/dashboard/pit-owner/pits" : "/dashboard/buyer");
   }
 
   return (
@@ -29,15 +29,15 @@ export default function OnboardingPage() {
         <div className="grid sm:grid-cols-2 gap-4">
           <button
             disabled={loading}
-            onClick={() => selectRole("CONTRACTOR")}
+            onClick={() => selectRole("BUYER")}
             className="p-6 rounded-2xl border-2 border-gray-200 hover:border-amber-500 hover:bg-amber-50 transition-all text-left group"
           >
             <div className="text-4xl mb-3">🚛</div>
             <h3 className="text-lg font-semibold text-gray-900 group-hover:text-amber-700">
-              Contractor / Trucker
+              Contractor / Buyer
             </h3>
             <p className="text-sm text-gray-500 mt-1">
-              Find pits near my job site or haul route
+              Find pits, manage projects, and track loads
             </p>
           </button>
 
@@ -51,7 +51,7 @@ export default function OnboardingPage() {
               Pit Owner
             </h3>
             <p className="text-sm text-gray-500 mt-1">
-              List my pit and accept payments
+              List my pit and accept load payments
             </p>
           </button>
         </div>

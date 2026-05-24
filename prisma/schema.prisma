@@ -14,7 +14,9 @@ datasource db {
 enum UserRole {
   ADMIN
   PIT_OWNER
-  CONTRACTOR
+  CONTRACTOR  // legacy — treated as BUYER in app logic
+  BUYER
+  DRIVER
 }
 
 enum PitType {
@@ -41,33 +43,57 @@ enum TransactionStatus {
   REFUNDED
 }
 
+enum OrderStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum SettlementStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+enum VerificationMethod {
+  GEOFENCE
+  OPERATOR
+}
+
 // ─── MODELS ───────────────────────────────────────────────────────────────────
 
 model User {
-  id               String   @id @default(cuid())
-  email            String   @unique
+  id               String    @id @default(cuid())
+  email            String    @unique
   emailVerified    DateTime?
   name             String?
   image            String?
   hashedPassword   String?
-  role             UserRole @default(CONTRACTOR)
+  role             UserRole  @default(BUYER)
   phone            String?
   company          String?
 
   // Stripe Connect (pit owners)
-  stripeAccountId  String?  @unique
-  stripeOnboarded  Boolean  @default(false)
+  stripeAccountId  String?   @unique
+  stripeOnboarded  Boolean   @default(false)
 
-  // Stripe customer (contractors)
-  stripeCustomerId String?  @unique
+  // Stripe customer (buyers/contractors)
+  stripeCustomerId          String?  @unique
+  defaultPaymentMethodId    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  pits         Pit[]         @relation("PitOwner")
-  transactions Transaction[] @relation("TransactionContractor")
-  accounts     Account[]
-  sessions     Session[]
+  pits                   Pit[]              @relation("PitOwner")
+  transactions           Transaction[]      @relation("TransactionContractor")
+  buyerProjects          Project[]          @relation("BuyerProjects")
+  buyerOrders            Order[]            @relation("BuyerOrders")
+  driverLoadEvents       LoadEvent[]        @relation("DriverLoadEvents")
+  operatorLoadEvents     LoadEvent[]        @relation("OperatorLoadEvents")
+  buyerDriverAssignments DriverAssignment[] @relation("BuyerDriverAssignments")
+  driverAssignments      DriverAssignment[] @relation("DriverAssignments")
+  accounts               Account[]
+  sessions               Session[]
 
   @@index([role])
 }
@@ -120,21 +146,33 @@ model Pit {
   status    PitStatus @default(ACTIVE)
   accepting Boolean   @default(true)
 
-  // Rates stored in cents to avoid float rounding
+  // Rates stored in cents — material-specific
   dumpRateCents    Int?
   borrowRateCents  Int?
   hasTopsoil       Boolean @default(false)
   topsoilRateCents Int?
+
+  // Operator & equipment info
+  operatorProvided  Boolean @default(false)
+  equipmentProvided Boolean @default(false)
+  equipmentNotes    String?
+
+  // Operating hours (HH:MM 24-hour format)
+  hoursOpen  String?
+  hoursClose String?
+
+  // Geofence radius (admin-only edit)
+  geofenceRadiusMeters Int @default(200)
 
   contactName  String?
   contactPhone String?
   contactEmail String?
   notes        String? @db.Text
 
-  ownerId      String?
-  owner        User?   @relation("PitOwner", fields: [ownerId], references: [id])
+  ownerId String?
+  owner   User?   @relation("PitOwner", fields: [ownerId], references: [id])
 
-  importedFromKmz Boolean @default(false)
+  importedFromKmz Boolean  @default(false)
   kmzUploadId     String?
   materialTypes   String[] @default([])
 
@@ -142,12 +180,168 @@ model Pit {
   updatedAt DateTime @updatedAt
 
   transactions Transaction[]
+  orders       Order[]
+  loadEvents   LoadEvent[]
 
   @@index([state])
   @@index([accepting])
   @@index([pitType])
   @@index([ownerId])
   @@index([latitude, longitude])
+}
+
+model Project {
+  id          String @id @default(cuid())
+  buyerUserId String
+  buyer       User   @relation("BuyerProjects", fields: [buyerUserId], references: [id])
+
+  name        String
+  location    String?
+  description String?
+
+  // Accounting export fields (all optional, buyer-entered)
+  externalJobCode String?
+  costCode        String?
+  glAccountCode   String?
+  qbAccount       String?
+  qbClass         String?
+  costType        String?  @default("Materials")
+  taxExempt       Boolean  @default(true)
+
+  // Procore integration fields
+  procoreCompanyId      String?
+  procoreProjectId      String?
+  procoreVendorId       String?
+  procoreCostCodeId     String?
+  procoreLineItemTypeId String?
+
+  // Autodesk ACC integration fields
+  accProjectId       String?
+  accContainerId     String?
+  accBudgetSegmentId String?
+  accCompanyId       String?
+
+  orders            Order[]
+  driverAssignments DriverAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([buyerUserId])
+}
+
+model Order {
+  id          String  @id @default(cuid())
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id])
+  pitId       String
+  pit         Pit     @relation(fields: [pitId], references: [id])
+  buyerUserId String
+  buyer       User    @relation("BuyerOrders", fields: [buyerUserId], references: [id])
+
+  status         OrderStatus @default(ACTIVE)
+  estimatedLoads Int?
+  driverPaymentEnabled Boolean @default(false)
+
+  // Pit operator & equipment snapshot at time of order
+  operatorProvided  Boolean @default(false)
+  equipmentProvided Boolean @default(false)
+  equipmentNotes    String?
+
+  date DateTime @db.Date
+
+  loadEvents  LoadEvent[]
+  settlements Settlement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([pitId])
+  @@index([buyerUserId])
+  @@index([date])
+  @@index([status])
+}
+
+model LoadEvent {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
+  pitId   String
+  pit     Pit    @relation(fields: [pitId], references: [id])
+
+  driverUserId   String?
+  driver         User?   @relation("DriverLoadEvents", fields: [driverUserId], references: [id])
+  operatorUserId String?
+  operator       User?   @relation("OperatorLoadEvents", fields: [operatorUserId], references: [id])
+
+  verificationMethod VerificationMethod
+  materialType       String  // one of ALL_MATERIAL_TYPES
+  rateCentsAtTime    Int     // snapshot of rate at time of load
+
+  entryTime DateTime?
+  exitTime  DateTime?
+
+  manualConfirmed Boolean @default(false)
+  disputed        Boolean @default(false)
+  verified        Boolean @default(false)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([pitId])
+  @@index([driverUserId])
+  @@index([operatorUserId])
+  @@index([verified])
+  @@index([createdAt])
+}
+
+model Settlement {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  date DateTime @db.Date
+
+  verifiedLoadCount Int
+  grossAmountCents  Int
+  commissionCents   Int
+  netToPitCents     Int
+
+  stripeChargeId   String?
+  stripeTransferId String?
+
+  status SettlementStatus @default(PENDING)
+
+  buyerPaymentMethod String @default("COB")
+  pitPayoutSchedule  String @default("COB")
+
+  createdAt DateTime @default(now())
+
+  @@unique([orderId, date])
+  @@index([orderId])
+  @@index([date])
+  @@index([status])
+}
+
+model DriverAssignment {
+  id          String  @id @default(cuid())
+  buyerUserId String
+  buyer       User    @relation("BuyerDriverAssignments", fields: [buyerUserId], references: [id])
+  driverUserId String
+  driver      User    @relation("DriverAssignments", fields: [driverUserId], references: [id])
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id])
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@index([buyerUserId])
+  @@index([driverUserId])
+  @@index([projectId])
 }
 
 model KmzUpload {
@@ -158,6 +352,7 @@ model KmzUpload {
   createdAt   DateTime @default(now())
 }
 
+// Legacy transaction model — kept for historical data
 model Transaction {
   id String @id @default(cuid())
 
@@ -195,13 +390,13 @@ model Transaction {
 }
 
 model Invoice {
-  id            String   @id @default(cuid())
-  invoiceNumber String   @unique
+  id            String      @id @default(cuid())
+  invoiceNumber String      @unique
   transaction   Transaction @relation(fields: [transactionId], references: [id])
-  transactionId String   @unique
+  transactionId String      @unique
   pdfUrl        String?
   sentToEmail   String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime    @default(now())
 }
 
 model PlatformSettings {
