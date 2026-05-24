@@ -96,63 +96,77 @@ async function runCOBSettlement(date: Date): Promise<SettlementResult[]> {
     }
 
     // Calculate totals from actual rates snapshotted on each load event
-    const grossCents     = loads.reduce((sum, l) => sum + l.rateCentsAtTime, 0);
+    const grossCents      = loads.reduce((sum, l) => sum + l.rateCentsAtTime, 0);
     const commissionCents = Math.round(grossCents * (feePercent / 100));
     const netToPitCents   = grossCents - commissionCents;
+
+    // Check if buyer is on net terms — if so, accrue instead of charging card
+    const netTermsAccount = await prisma.netTermsAccount.findUnique({
+      where: { buyerUserId: order.buyerUserId },
+    });
 
     try {
       let chargeId: string | undefined;
       let transferId: string | undefined;
+      const isNetTerms = !!netTermsAccount;
 
-      const buyer = order.buyer;
-      const pit   = order.pit;
+      if (!isNetTerms) {
+        // ── Standard COB: charge buyer's card immediately ──────────────────
+        const buyer = order.buyer;
+        const pit   = order.pit;
+        const pitStripeAccountId = pit.owner?.stripeAccountId ?? null;
 
-      // Only attempt Stripe charge if pit owner has a connected account and buyer has payment method
-      const pitStripeAccountId = pit.owner?.stripeAccountId ?? null;
-      if (pitStripeAccountId && buyer.stripeCustomerId && buyer.defaultPaymentMethodId) {
-        const idempotencyKey = `cob-${order.id}-${date.toISOString().slice(0, 10)}`;
+        if (pitStripeAccountId && buyer.stripeCustomerId && buyer.defaultPaymentMethodId) {
+          const idempotencyKey = `cob-${order.id}-${date.toISOString().slice(0, 10)}`;
 
-        const paymentIntent = await stripe.paymentIntents.create({
-          amount:                 grossCents,
-          currency:               "usd",
-          customer:               buyer.stripeCustomerId,
-          payment_method:         buyer.defaultPaymentMethodId,
-          confirm:                true,
-          off_session:            true,
-          application_fee_amount: commissionCents,
-          transfer_data:          { destination: pitStripeAccountId },
-          description:            `Got Dirt? — COB settlement ${date.toISOString().slice(0, 10)} — Order ${order.id}`,
-          metadata:               { order_id: order.id, load_count: String(loads.length) },
-        }, { idempotencyKey });
+          const paymentIntent = await stripe.paymentIntents.create({
+            amount:                 grossCents,
+            currency:               "usd",
+            customer:               buyer.stripeCustomerId,
+            payment_method:         buyer.defaultPaymentMethodId,
+            confirm:                true,
+            off_session:            true,
+            application_fee_amount: commissionCents,
+            transfer_data:          { destination: pitStripeAccountId },
+            description:            `Got Dirt? — COB settlement ${date.toISOString().slice(0, 10)} — Order ${order.id}`,
+            metadata:               { order_id: order.id, load_count: String(loads.length) },
+          }, { idempotencyKey });
 
-        chargeId   = paymentIntent.id;
-        transferId = typeof paymentIntent.transfer_data?.destination === "string"
-          ? paymentIntent.transfer_data.destination
-          : undefined;
+          chargeId   = paymentIntent.id;
+          transferId = typeof paymentIntent.transfer_data?.destination === "string"
+            ? paymentIntent.transfer_data.destination
+            : undefined;
+        }
       }
 
       // Upsert settlement record
+      // Net terms: mark PROCESSED immediately (accrued); pit owner is paid when buyer invoice is collected.
+      // pitAdvanceByGotdirt=true signals Got Dirt fronted the pit payout.
       await prisma.settlement.upsert({
         where:  { orderId_date: { orderId: order.id, date } },
         create: {
-          orderId:           order.id,
+          orderId:              order.id,
           date,
-          verifiedLoadCount: loads.length,
-          grossAmountCents:  grossCents,
+          verifiedLoadCount:    loads.length,
+          grossAmountCents:     grossCents,
           commissionCents,
           netToPitCents,
-          stripeChargeId:    chargeId,
-          stripeTransferId:  transferId,
-          status:            chargeId ? "PROCESSED" : "PENDING",
+          stripeChargeId:       chargeId,
+          stripeTransferId:     transferId,
+          buyerPaymentMethod:   isNetTerms ? `NET${netTermsAccount.termsDays}` : "COB",
+          pitAdvanceByGotdirt:  isNetTerms,
+          status:               isNetTerms || chargeId ? "PROCESSED" : "PENDING",
         },
         update: {
-          verifiedLoadCount: loads.length,
-          grossAmountCents:  grossCents,
+          verifiedLoadCount:    loads.length,
+          grossAmountCents:     grossCents,
           commissionCents,
           netToPitCents,
-          stripeChargeId:    chargeId,
-          stripeTransferId:  transferId,
-          status:            chargeId ? "PROCESSED" : "PENDING",
+          stripeChargeId:       chargeId,
+          stripeTransferId:     transferId,
+          buyerPaymentMethod:   isNetTerms ? `NET${netTermsAccount.termsDays}` : "COB",
+          pitAdvanceByGotdirt:  isNetTerms,
+          status:               isNetTerms || chargeId ? "PROCESSED" : "PENDING",
         },
       });
 
@@ -163,7 +177,7 @@ async function runCOBSettlement(date: Date): Promise<SettlementResult[]> {
       if (settlement) void runAMLChecks(settlement.id, loads.length, grossCents, order.pit.id, order.buyerUserId, date);
 
       const dateStr = date.toISOString().slice(0, 10);
-      // Fire-and-forget emails
+
       void sendCOBSettledBuyer({
         buyerEmail: order.buyer.email,
         buyerName:  order.buyer.name,
@@ -172,6 +186,8 @@ async function runCOBSettlement(date: Date): Promise<SettlementResult[]> {
         loadCount:  loads.length,
         grossCents,
       });
+
+      // Only notify pit owner of payout on direct COB charge; net terms payout is deferred
       if (chargeId && order.pit.owner?.email) {
         void sendPayoutSentPitOwner({
           ownerEmail: order.pit.owner.email,
@@ -184,9 +200,9 @@ async function runCOBSettlement(date: Date): Promise<SettlementResult[]> {
       }
 
       results.push({
-        orderId:    order.id,
-        status:     "processed",
-        loadCount:  loads.length,
+        orderId:   order.id,
+        status:    "processed",
+        loadCount: loads.length,
         grossCents,
       });
     } catch (err) {

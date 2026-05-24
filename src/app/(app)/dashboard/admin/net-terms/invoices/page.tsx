@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import InvoiceActions from "./InvoiceActions";
 
 export default async function NetTermsInvoicesPage() {
   const session = await getServerSession(authOptions);
@@ -58,7 +59,7 @@ export default async function NetTermsInvoicesPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    {["Invoice #", "Buyer", "Period", "Due Date", "Amount", "Status", "Escalated"].map((h) => (
+                    {["Invoice #", "Buyer", "Period", "Due Date", "Amount", "Status", "Escalated", "Actions"].map((h) => (
                       <th key={h} className="px-4 py-3 text-left font-semibold text-gray-600">{h}</th>
                     ))}
                   </tr>
@@ -106,6 +107,9 @@ export default async function NetTermsInvoicesPage() {
                           ) : (
                             <span className="text-gray-300 text-xs">—</span>
                           )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <InvoiceActions invoiceId={inv.id} status={inv.status} />
                         </td>
                       </tr>
                     );

@@ -89,18 +89,6 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Net terms: charge down payment if buyer has a net terms account with downPaymentPct > 0
-  const netTermsAccount = await prisma.netTermsAccount.findUnique({
-    where: { buyerUserId: session.user.id },
-  });
-  if (netTermsAccount && netTermsAccount.downPaymentPct > 0 && estimatedLoads) {
-    // We can only estimate based on estimated loads — we don't know material type yet
-    // so we skip auto-charge here and surface to the buyer on the order detail page
-    // This placeholder records the intent; actual charge happens via /api/orders/[id]/down-payment
-    // (future enhancement — buyer selects material type before paying)
-    void Promise.resolve(); // no-op placeholder
-  }
-
   // Notify pit owner of new order
   if (pit.owner?.email) {
     const buyer = await prisma.user.findUnique({ where: { id: session.user.id }, select: { company: true } });
@@ -114,10 +102,14 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // Tell the client whether a down payment is required so it can prompt accordingly
+  const netTermsAccount = await prisma.netTermsAccount.findUnique({
+    where: { buyerUserId: session.user.id },
+    select: { termsDays: true, downPaymentPct: true },
+  });
+
   return NextResponse.json({
     order,
-    netTermsAccount: netTermsAccount
-      ? { termsDays: netTermsAccount.termsDays, downPaymentPct: netTermsAccount.downPaymentPct }
-      : null,
+    netTermsAccount: netTermsAccount ?? null,
   }, { status: 201 });
 }
