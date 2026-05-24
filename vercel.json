@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/settle",
       "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/net-terms-invoices",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/net-terms-reminders",
+      "schedule": "0 8 * * *"
     }
   ]
 }

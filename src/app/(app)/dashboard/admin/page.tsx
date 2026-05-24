@@ -58,6 +58,8 @@ export default async function AdminDashboard() {
             { href: "/dashboard/admin/aml", icon: "🚨", title: "AML Flags", desc: "Anti-money laundering review queue" },
             { href: "/dashboard/admin/settlements", icon: "💰", title: "Settlements", desc: "COB settlement log and revenue" },
             { href: "/dashboard/admin/disputes", icon: "🚩", title: "Disputes", desc: "Disputed loads pending review" },
+            { href: "/dashboard/admin/net-terms", icon: "📄", title: "Net Terms", desc: "Assign payment terms and view invoices" },
+            { href: "/dashboard/admin/net-terms/exposure", icon: "📊", title: "Exposure", desc: "Cash flow exposure and receivables" },
             { href: "/dashboard/admin/settings", icon: "⚙️", title: "Settings", desc: "Platform fee and configuration" },
             { href: "/map", icon: "🗺️", title: "View Map", desc: "See pits as users see them" },
           ].map((action) => (

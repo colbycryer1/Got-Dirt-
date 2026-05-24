@@ -58,6 +58,10 @@ export async function sendPayoutSentPitOwner(opts: {
   );
 }
 
+export async function sendEmail(opts: { to: string; subject: string; html: string }) {
+  await send(opts.to, opts.subject, opts.html);
+}
+
 export async function sendNewOrderPitOwner(opts: {
   ownerEmail: string;
   ownerName: string | null;

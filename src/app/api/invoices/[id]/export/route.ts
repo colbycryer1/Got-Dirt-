@@ -87,6 +87,60 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     });
   }
 
+  // QuickBooks IIF (QuickBooks Desktop import format)
+  if (format === "iif") {
+    const vendorName = "Got Dirt LLC";
+    const account = order.project.qbAccount ?? "Subcontractors";
+    const cls = order.project.qbClass ? `\t${order.project.qbClass}` : "";
+    const desc = `${order.pit.name} - ${primaryMaterial} - ${settlement.verifiedLoadCount} loads`;
+    const amount = (settlement.grossAmountCents / 100).toFixed(2);
+
+    const iif = [
+      "!TRNS\tTRNSID\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tDOCNUM\tMEMO",
+      "!SPL\tSPLID\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tDOCNUM\tMEMO",
+      "!ENDTRNS",
+      `TRNS\t\tBILL\t${dateStr}\tAccounts Payable\t${vendorName}\t-${amount}\t${invoiceRef}\t${desc}`,
+      `SPL\t\tBILL\t${dateStr}\t${account}\t${vendorName}\t${amount}\t${invoiceRef}\t${desc}${cls}`,
+      "ENDTRNS",
+    ].join("\r\n");
+
+    return new Response(iif, {
+      headers: {
+        "Content-Type": "text/plain",
+        "Content-Disposition": `attachment; filename="GotDirt_Invoice_${invoiceRef}.iif"`,
+      },
+    });
+  }
+
+  // QuickBooks Online JSON (QBO-compatible REST payload)
+  if (format === "qbo") {
+    const qboPayload = {
+      Line: [
+        {
+          DetailType: "ItemBasedExpenseLineDetail",
+          Amount: settlement.grossAmountCents / 100,
+          Description: `${order.pit.name} - ${primaryMaterial} - ${settlement.verifiedLoadCount} loads`,
+          ItemBasedExpenseLineDetail: {
+            Qty: settlement.verifiedLoadCount,
+            UnitPrice: unitPriceCents / 100,
+            ClassRef: order.project.qbClass ? { name: order.project.qbClass } : undefined,
+            AccountRef: order.project.qbAccount ? { name: order.project.qbAccount } : undefined,
+          },
+        },
+      ],
+      VendorRef: { name: "Got Dirt LLC" },
+      DocNumber: invoiceRef,
+      TxnDate: new Date(settlement.date).toISOString().split("T")[0],
+      PrivateNote: `Job: ${order.project.externalJobCode ?? order.project.name}`,
+    };
+
+    return NextResponse.json(qboPayload, {
+      headers: {
+        "Content-Disposition": `attachment; filename="GotDirt_Invoice_${invoiceRef}_qbo.json"`,
+      },
+    });
+  }
+
   if (format === "pdf") {
     // Dynamically import to keep server bundle lean
     const { generateInvoicePDF } = await import("@/lib/pdf");
@@ -114,5 +168,5 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     });
   }
 
-  return NextResponse.json({ error: "Unsupported format. Use: json, csv, pdf" }, { status: 400 });
+  return NextResponse.json({ error: "Unsupported format. Use: json, csv, pdf, iif, qbo" }, { status: 400 });
 }

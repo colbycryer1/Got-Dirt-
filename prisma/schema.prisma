@@ -80,6 +80,19 @@ enum FlagResolution {
   REPORTED
 }
 
+enum NetTermsInvoiceStatus {
+  OPEN
+  OVERDUE
+  PAID
+  WRITTEN_OFF
+}
+
+enum IntegrationPlatform {
+  PROCORE
+  ACC
+  QBO
+}
+
 // ─── MODELS ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -114,6 +127,9 @@ model User {
   driverAssignments      DriverAssignment[] @relation("DriverAssignments")
   pitOwnerCompliance     PitOwnerCompliance?
   flagReviews            TransactionFlag[]  @relation("FlagReviewer")
+  netTermsAccount        NetTermsAccount?
+  buyerNetTermsInvoices  NetTermsInvoice[]  @relation("BuyerNetTermsInvoices")
+  integrationConnections IntegrationConnection[]
   accounts               Account[]
   sessions               Session[]
 
@@ -272,8 +288,9 @@ model Order {
 
   date DateTime @db.Date
 
-  loadEvents  LoadEvent[]
-  settlements Settlement[]
+  loadEvents           LoadEvent[]
+  settlements          Settlement[]
+  downPaymentTransaction DownPaymentTransaction?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -340,6 +357,9 @@ model Settlement {
   buyerPaymentMethod  String  @default("COB")
   pitPayoutSchedule   String  @default("COB")
   pitAdvanceByGotdirt Boolean @default(false)
+
+  netTermsInvoiceId String?
+  netTermsInvoice   NetTermsInvoice? @relation(fields: [netTermsInvoiceId], references: [id])
 
   transactionFlags TransactionFlag[]
 
@@ -465,4 +485,111 @@ model TransactionFlag {
 
   @@index([settlementId])
   @@index([resolution])
+}
+
+// ─── PHASE 2: NET TERMS ───────────────────────────────────────────────────────
+
+model NetTermsAccount {
+  id          String @id @default(cuid())
+  buyerUserId String @unique
+  buyer       User   @relation(fields: [buyerUserId], references: [id])
+
+  termsDays        Int   @default(30)   // e.g. 30, 45, 60
+  creditLimitCents Int?                 // optional credit cap (null = no limit)
+  downPaymentPct   Float @default(0)    // % charged at order placement
+  billingPeriodDays Int  @default(30)   // how often invoices are generated
+
+  notes      String? @db.Text
+  assignedBy String               // admin userId who set these terms
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  netTermsInvoices NetTermsInvoice[]
+
+  @@index([buyerUserId])
+}
+
+model NetTermsInvoice {
+  id                String          @id @default(cuid())
+  netTermsAccountId String
+  netTermsAccount   NetTermsAccount @relation(fields: [netTermsAccountId], references: [id])
+  buyerUserId       String
+  buyer             User            @relation("BuyerNetTermsInvoices", fields: [buyerUserId], references: [id])
+
+  invoiceNumber String   @unique
+  periodStart   DateTime @db.Date
+  periodEnd     DateTime @db.Date
+  dueDate       DateTime @db.Date
+
+  subtotalCents   Int
+  commissionCents Int
+  totalDueCents   Int
+
+  status NetTermsInvoiceStatus @default(OPEN)
+
+  pdfUrl                String?
+  stripeInvoiceId       String? @unique
+  stripePaymentIntentId String? @unique
+
+  // Overdue reminder tracking
+  reminderSentAt   DateTime?
+  plus3SentAt      DateTime?
+  plus7SentAt      DateTime?
+  plus15SentAt     DateTime?
+  escalatedToAdmin Boolean   @default(false)
+
+  settlements Settlement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Idempotency: one invoice per buyer per billing period
+  @@unique([buyerUserId, periodStart, periodEnd])
+  @@index([buyerUserId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model DownPaymentTransaction {
+  id      String @id @default(cuid())
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  amountCents           Int
+  stripePaymentIntentId String?           @unique
+  status                TransactionStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+}
+
+// ─── PHASE 2: INTEGRATIONS ────────────────────────────────────────────────────
+
+model IntegrationConnection {
+  id          String @id @default(cuid())
+  buyerUserId String
+  buyer       User   @relation(fields: [buyerUserId], references: [id])
+
+  platform IntegrationPlatform
+
+  // AES-256 encrypted OAuth tokens (never stored in plaintext)
+  accessTokenEnc  String   @db.Text
+  refreshTokenEnc String?  @db.Text
+  expiresAt       DateTime?
+
+  // Platform-specific identifiers
+  platformUserId    String?
+  platformCompanyId String?
+  platformOrgId     String?
+  scope             String?
+
+  lastSyncAt    DateTime?
+  lastSyncError String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([buyerUserId, platform])
+  @@index([buyerUserId])
+  @@index([platform])
 }
