@@ -28,8 +28,7 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
   const [filterType, setFilterType] = useState<string>("");
   const [filterAccepting, setFilterAccepting] = useState<string>("");
   const [filterMaterial, setFilterMaterial] = useState<string>("");
-  const [filterOperator, setFilterOperator] = useState(false);
-  const [filterEquipment, setFilterEquipment] = useState(false);
+  const [filterOperatorEquipment, setFilterOperatorEquipment] = useState(false);
   const [filterState, setFilterState] = useState("");
 
   const fetchBounds = useCallback(async (ne: google.maps.LatLng, sw: google.maps.LatLng) => {
@@ -43,8 +42,7 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
         ...(filterType ? { type: filterType } : {}),
         ...(filterAccepting ? { accepting: filterAccepting } : {}),
         ...(filterMaterial ? { material: filterMaterial } : {}),
-        ...(filterOperator ? { operatorProvided: "true" } : {}),
-        ...(filterEquipment ? { equipmentProvided: "true" } : {}),
+        ...(filterOperatorEquipment ? { operatorProvided: "true", equipmentProvided: "true" } : {}),
         ...(filterState ? { state: filterState } : {}),
       });
       const res = await fetch(`/api/pits?${params}`);
@@ -53,7 +51,7 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [filterType, filterAccepting, filterMaterial, filterOperator, filterEquipment, filterState]);
+  }, [filterType, filterAccepting, filterMaterial, filterOperatorEquipment, filterState]);
 
   useEffect(() => { fetchBoundsRef.current = fetchBounds; }, [fetchBounds]);
 
@@ -64,7 +62,7 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
     const bounds = map.getBounds();
     if (!bounds) return;
     fetchBoundsRef.current(bounds.getNorthEast(), bounds.getSouthWest());
-  }, [filterType, filterAccepting, filterMaterial, filterOperator, filterEquipment, filterState]);
+  }, [filterType, filterAccepting, filterMaterial, filterOperatorEquipment, filterState]);
 
   // Initialize Google Maps
   useEffect(() => {
@@ -196,10 +194,8 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
         onFilterAcceptingChange={setFilterAccepting}
         filterMaterial={filterMaterial}
         onFilterMaterialChange={setFilterMaterial}
-        filterOperator={filterOperator}
-        onFilterOperatorChange={setFilterOperator}
-        filterEquipment={filterEquipment}
-        onFilterEquipmentChange={setFilterEquipment}
+        filterOperatorEquipment={filterOperatorEquipment}
+        onFilterOperatorEquipmentChange={setFilterOperatorEquipment}
         filterState={filterState}
         onFilterStateChange={setFilterState}
         onGeolocate={geolocate}

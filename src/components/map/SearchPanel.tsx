@@ -12,10 +12,8 @@ interface Props {
   onFilterAcceptingChange: (v: string) => void;
   filterMaterial: string;
   onFilterMaterialChange: (v: string) => void;
-  filterOperator: boolean;
-  onFilterOperatorChange: (v: boolean) => void;
-  filterEquipment: boolean;
-  onFilterEquipmentChange: (v: boolean) => void;
+  filterOperatorEquipment: boolean;
+  onFilterOperatorEquipmentChange: (v: boolean) => void;
   filterState: string;
   onFilterStateChange: (v: string) => void;
   onGeolocate: () => void;
@@ -33,10 +31,8 @@ export function SearchPanel({
   onFilterAcceptingChange,
   filterMaterial,
   onFilterMaterialChange,
-  filterOperator,
-  onFilterOperatorChange,
-  filterEquipment,
-  onFilterEquipmentChange,
+  filterOperatorEquipment,
+  onFilterOperatorEquipmentChange,
   filterState,
   onFilterStateChange,
   onGeolocate,
@@ -210,25 +206,16 @@ export function SearchPanel({
         </select>
       </div>
 
-      {/* Operator / Equipment checkboxes */}
-      <div className="space-y-1.5">
+      {/* Operator & Equipment combined checkbox */}
+      <div>
         <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
           <input
             type="checkbox"
-            checked={filterOperator}
-            onChange={(e) => onFilterOperatorChange(e.target.checked)}
+            checked={filterOperatorEquipment}
+            onChange={(e) => onFilterOperatorEquipmentChange(e.target.checked)}
             className="w-3.5 h-3.5 accent-amber-600"
           />
-          Operator provided
-        </label>
-        <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={filterEquipment}
-            onChange={(e) => onFilterEquipmentChange(e.target.checked)}
-            className="w-3.5 h-3.5 accent-amber-600"
-          />
-          Equipment on site
+          Operator &amp; Equipment Provided
         </label>
       </div>
 
