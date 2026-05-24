@@ -36,8 +36,11 @@ export default async function BuyerDashboardPage() {
       <nav className="bg-white border-b px-6 py-4 flex items-center justify-between">
         <Link href="/" className="font-black text-black text-xl">Got Dirt?</Link>
         <div className="flex items-center gap-4">
+          <Link href="/dashboard/buyer/saved-pits" className="text-sm text-gray-500 hover:text-gray-800">
+            Saved Pits
+          </Link>
           <Link href="/dashboard/buyer/settings" className="text-sm text-gray-500 hover:text-gray-800">
-            Integrations &amp; Settings
+            Settings
           </Link>
           <Link href="/map" className="text-amber-600 text-sm font-medium">Find Pits →</Link>
         </div>

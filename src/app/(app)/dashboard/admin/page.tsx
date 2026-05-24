@@ -56,6 +56,7 @@ export default async function AdminDashboard() {
             { href: "/dashboard/admin/users", icon: "👥", title: "Users", desc: "View and manage user accounts" },
             { href: "/dashboard/admin/kyc", icon: "🔐", title: "KYC Status", desc: "Pit owner Stripe verification status" },
             { href: "/dashboard/admin/aml", icon: "🚨", title: "AML Flags", desc: "Anti-money laundering review queue" },
+            { href: "/dashboard/admin/claims", icon: "🏷️", title: "Pit Claims", desc: "Owners claiming admin-uploaded pits" },
             { href: "/dashboard/admin/settlements", icon: "💰", title: "Settlements", desc: "COB settlement log and revenue" },
             { href: "/dashboard/admin/disputes", icon: "🚩", title: "Disputes", desc: "Disputed loads pending review" },
             { href: "/dashboard/admin/net-terms", icon: "📄", title: "Net Terms", desc: "Assign payment terms and view invoices" },

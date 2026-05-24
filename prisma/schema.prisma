@@ -93,6 +93,12 @@ enum IntegrationPlatform {
   QBO
 }
 
+enum ClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // ─── MODELS ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -130,6 +136,8 @@ model User {
   netTermsAccount        NetTermsAccount?
   buyerNetTermsInvoices  NetTermsInvoice[]  @relation("BuyerNetTermsInvoices")
   integrationConnections IntegrationConnection[]
+  pitClaims              PitClaim[]         @relation("ClaimantClaims")
+  savedPits              SavedPit[]
   accounts               Account[]
   sessions               Session[]
 
@@ -220,6 +228,8 @@ model Pit {
   transactions Transaction[]
   orders       Order[]
   loadEvents   LoadEvent[]
+  pitClaims    PitClaim[]
+  savedByUsers SavedPit[]
 
   @@index([state])
   @@index([accepting])
@@ -592,4 +602,41 @@ model IntegrationConnection {
   @@unique([buyerUserId, platform])
   @@index([buyerUserId])
   @@index([platform])
+}
+
+// ─── PHASE 3: PIT CLAIMS + SAVED PITS ────────────────────────────────────────
+
+model PitClaim {
+  id         String      @id @default(cuid())
+  pitId      String
+  pit        Pit         @relation(fields: [pitId], references: [id])
+  claimantId String
+  claimant   User        @relation("ClaimantClaims", fields: [claimantId], references: [id])
+
+  status     ClaimStatus @default(PENDING)
+  message    String?     @db.Text  // owner's note explaining claim
+  adminNotes String?     @db.Text
+  reviewedBy String?
+  reviewedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([pitId, claimantId])
+  @@index([pitId])
+  @@index([claimantId])
+  @@index([status])
+}
+
+model SavedPit {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  pitId     String
+  pit       Pit      @relation(fields: [pitId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, pitId])
+  @@index([userId])
+  @@index([pitId])
 }
