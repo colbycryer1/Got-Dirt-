@@ -9,10 +9,18 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  const [user, compliance] = await Promise.all([
+    prisma.user.findUnique({ where: { id: session.user.id } }),
+    prisma.pitOwnerCompliance.findUnique({ where: { pitOwnerUserId: session.user.id } }),
+  ]);
+
   return NextResponse.json({
-    stripeAccountId: user?.stripeAccountId,
-    stripeOnboarded: user?.stripeOnboarded ?? false,
+    stripeAccountId:  user?.stripeAccountId ?? null,
+    stripeOnboarded:  user?.stripeOnboarded ?? false,
+    kycStatus:        compliance?.kycStatus ?? "NOT_STARTED",
+    payoutsEnabled:   compliance?.payoutsEnabled ?? false,
+    chargesEnabled:   compliance?.chargesEnabled ?? false,
+    requirementsDue:  compliance?.requirementsDue ?? [],
   });
 }
 
@@ -44,8 +52,15 @@ export async function POST() {
   const accountLink = await stripe.accountLinks.create({
     account: accountId,
     refresh_url: `${appUrl}/account/stripe?refresh=true`,
-    return_url: `${appUrl}/account/stripe?success=true`,
+    return_url:  `${appUrl}/account/stripe?success=true`,
     type: "account_onboarding",
+  });
+
+  // Upsert compliance record with the onboarding URL
+  await prisma.pitOwnerCompliance.upsert({
+    where:  { pitOwnerUserId: session.user.id },
+    create: { pitOwnerUserId: session.user.id, kycStatus: "PENDING", stripeOnboardingUrl: accountLink.url },
+    update: { stripeOnboardingUrl: accountLink.url, kycStatus: "PENDING" },
   });
 
   return NextResponse.json({ url: accountLink.url });

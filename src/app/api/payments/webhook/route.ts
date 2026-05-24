@@ -82,10 +82,38 @@ export async function POST(req: NextRequest) {
 
     case "account.updated": {
       const account = event.data.object as Stripe.Account;
-      if (account.charges_enabled) {
-        await prisma.user.updateMany({
-          where: { stripeAccountId: account.id },
-          data: { stripeOnboarded: true },
+      const payoutsEnabled = account.payouts_enabled ?? false;
+      const chargesEnabled = account.charges_enabled ?? false;
+      const requirementsDue = account.requirements?.currently_due ?? [];
+
+      // Update user onboarding flag
+      await prisma.user.updateMany({
+        where: { stripeAccountId: account.id },
+        data:  { stripeOnboarded: chargesEnabled },
+      });
+
+      // Sync detailed KYC compliance record
+      const user = await prisma.user.findFirst({ where: { stripeAccountId: account.id }, select: { id: true } });
+      if (user) {
+        await prisma.pitOwnerCompliance.upsert({
+          where:  { pitOwnerUserId: user.id },
+          create: {
+            pitOwnerUserId: user.id,
+            payoutsEnabled,
+            chargesEnabled,
+            requirementsDue,
+            kycStatus:     payoutsEnabled ? "VERIFIED" : "PENDING",
+            kycCompletedAt: payoutsEnabled ? new Date() : undefined,
+            lastCheckedAt:  new Date(),
+          },
+          update: {
+            payoutsEnabled,
+            chargesEnabled,
+            requirementsDue,
+            kycStatus:      payoutsEnabled ? "VERIFIED" : "PENDING",
+            kycCompletedAt: payoutsEnabled ? new Date() : undefined,
+            lastCheckedAt:  new Date(),
+          },
         });
       }
       break;

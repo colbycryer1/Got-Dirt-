@@ -60,6 +60,26 @@ enum VerificationMethod {
   OPERATOR
 }
 
+enum KycStatus {
+  NOT_STARTED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum FlagType {
+  UNUSUAL_VOLUME
+  RAPID_LOAD_INCREASE
+  NEW_ACCOUNT_HIGH_VOLUME
+  MANUAL_REVIEW
+}
+
+enum FlagResolution {
+  CLEARED
+  ESCALATED
+  REPORTED
+}
+
 // ─── MODELS ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -92,6 +112,8 @@ model User {
   operatorLoadEvents     LoadEvent[]        @relation("OperatorLoadEvents")
   buyerDriverAssignments DriverAssignment[] @relation("BuyerDriverAssignments")
   driverAssignments      DriverAssignment[] @relation("DriverAssignments")
+  pitOwnerCompliance     PitOwnerCompliance?
+  flagReviews            TransactionFlag[]  @relation("FlagReviewer")
   accounts               Account[]
   sessions               Session[]
 
@@ -315,8 +337,11 @@ model Settlement {
 
   status SettlementStatus @default(PENDING)
 
-  buyerPaymentMethod String @default("COB")
-  pitPayoutSchedule  String @default("COB")
+  buyerPaymentMethod  String  @default("COB")
+  pitPayoutSchedule   String  @default("COB")
+  pitAdvanceByGotdirt Boolean @default(false)
+
+  transactionFlags TransactionFlag[]
 
   createdAt DateTime @default(now())
 
@@ -404,4 +429,40 @@ model PlatformSettings {
   feePercent Float    @default(8.0)
   updatedAt  DateTime @updatedAt
   updatedBy  String?
+}
+
+model PitOwnerCompliance {
+  id             String    @id @default(cuid())
+  pitOwnerUserId String    @unique
+  pitOwner       User      @relation(fields: [pitOwnerUserId], references: [id])
+
+  kycStatus           KycStatus @default(NOT_STARTED)
+  kycCompletedAt      DateTime?
+  stripeOnboardingUrl String?
+  payoutsEnabled      Boolean   @default(false)
+  chargesEnabled      Boolean   @default(false)
+  requirementsDue     String[]  @default([])
+  lastCheckedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kycStatus])
+}
+
+model TransactionFlag {
+  id           String          @id @default(cuid())
+  settlementId String
+  settlement   Settlement      @relation(fields: [settlementId], references: [id])
+  flagType     FlagType
+  description  String
+  reviewedBy   String?
+  reviewer     User?           @relation("FlagReviewer", fields: [reviewedBy], references: [id])
+  reviewedAt   DateTime?
+  resolution   FlagResolution?
+
+  createdAt DateTime @default(now())
+
+  @@index([settlementId])
+  @@index([resolution])
 }

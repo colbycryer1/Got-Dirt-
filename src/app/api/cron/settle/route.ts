@@ -156,6 +156,12 @@ async function runCOBSettlement(date: Date): Promise<SettlementResult[]> {
         },
       });
 
+      // AML monitoring — fire-and-forget
+      const settlement = await prisma.settlement.findUnique({
+        where: { orderId_date: { orderId: order.id, date } },
+      });
+      if (settlement) void runAMLChecks(settlement.id, loads.length, grossCents, order.pit.id, order.buyerUserId, date);
+
       const dateStr = date.toISOString().slice(0, 10);
       // Fire-and-forget emails
       void sendCOBSettledBuyer({
@@ -203,4 +209,56 @@ async function runCOBSettlement(date: Date): Promise<SettlementResult[]> {
   }
 
   return results;
+}
+
+async function runAMLChecks(
+  settlementId: string,
+  loadCount: number,
+  grossCents: number,
+  pitId: string,
+  buyerUserId: string,
+  date: Date
+) {
+  const thirtyDaysAgo = new Date(date.getTime() - 30 * 86400000);
+
+  const [history, pit, buyer] = await Promise.all([
+    prisma.settlement.findMany({
+      where: { order: { pitId }, createdAt: { gte: thirtyDaysAgo }, status: "PROCESSED" },
+      select: { verifiedLoadCount: true },
+    }),
+    prisma.pit.findUnique({ where: { id: pitId }, select: { createdAt: true } }),
+    prisma.user.findUnique({ where: { id: buyerUserId }, select: { createdAt: true } }),
+  ]);
+
+  const flags: { flagType: "UNUSUAL_VOLUME" | "RAPID_LOAD_INCREASE" | "NEW_ACCOUNT_HIGH_VOLUME" | "MANUAL_REVIEW"; description: string }[] = [];
+
+  // Flag 1: Load count 3× above 30-day average
+  if (history.length > 0) {
+    const avg = history.reduce((s, h) => s + h.verifiedLoadCount, 0) / history.length;
+    if (loadCount > avg * 3) {
+      flags.push({ flagType: "UNUSUAL_VOLUME", description: `${loadCount} loads vs ${avg.toFixed(1)} avg over last 30 days` });
+    }
+  }
+
+  // Flag 2: New pit (< 30 days old) with settlement > $5,000
+  if (pit) {
+    const pitAgeDays = (date.getTime() - new Date(pit.createdAt).getTime()) / 86400000;
+    if (pitAgeDays < 30 && grossCents > 500_000) {
+      flags.push({ flagType: "NEW_ACCOUNT_HIGH_VOLUME", description: `New pit account, $${(grossCents / 100).toFixed(2)} settlement` });
+    }
+  }
+
+  // Flag 3: New buyer (< 14 days old) with settlement > $2,500
+  if (buyer) {
+    const buyerAgeDays = (date.getTime() - new Date(buyer.createdAt).getTime()) / 86400000;
+    if (buyerAgeDays < 14 && grossCents > 250_000) {
+      flags.push({ flagType: "NEW_ACCOUNT_HIGH_VOLUME", description: `New buyer account, $${(grossCents / 100).toFixed(2)} first settlement` });
+    }
+  }
+
+  for (const flag of flags) {
+    await prisma.transactionFlag.create({
+      data: { settlementId, ...flag },
+    });
+  }
 }

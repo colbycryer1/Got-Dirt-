@@ -73,12 +73,13 @@ export default async function PitOwnerDashboard() {
         </div>
 
         {/* Quick nav */}
-        <div className="grid sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {[
             { href: "/dashboard/pit-owner/pits",          icon: "⛏️",  label: "My Pits" },
             { href: "/dashboard/pit-owner/load-history",  icon: "📋",  label: "Load History" },
             { href: "/dashboard/pit-owner/payout-history",icon: "💰",  label: "Payout History" },
             { href: "/dashboard/pit-owner/geofence",      icon: "📍",  label: "Geofence Map" },
+            { href: "/account/stripe",                    icon: "🏦",  label: "Stripe Payouts" },
           ].map((item) => (
             <Link
               key={item.href}
