@@ -2,7 +2,15 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import Link from "next/link";
+
+type PitOwnerWithCompliance = Prisma.UserGetPayload<{
+  include: {
+    pitOwnerCompliance: true;
+    pits: { select: { id: true; status: true } };
+  };
+}>;
 
 const KYC_STYLES: Record<string, string> = {
   VERIFIED:    "bg-green-100 text-green-700",
@@ -15,14 +23,21 @@ export default async function AdminKYCPage() {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") redirect("/dashboard");
 
-  const pitOwners = await prisma.user.findMany({
-    where: { role: "PIT_OWNER" },
-    include: {
-      pitOwnerCompliance: true,
-      pits: { select: { id: true, status: true }, where: { status: "ACTIVE" } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  let pitOwners: PitOwnerWithCompliance[] = [];
+  let migrationPending = false;
+
+  try {
+    pitOwners = await prisma.user.findMany({
+      where: { role: "PIT_OWNER" },
+      include: {
+        pitOwnerCompliance: true,
+        pits: { select: { id: true, status: true }, where: { status: "ACTIVE" } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  } catch {
+    migrationPending = true;
+  }
 
   const verified    = pitOwners.filter((u) => u.pitOwnerCompliance?.kycStatus === "VERIFIED").length;
   const pending     = pitOwners.filter((u) => u.pitOwnerCompliance?.kycStatus === "PENDING").length;
@@ -37,6 +52,15 @@ export default async function AdminKYCPage() {
 
       <div className="max-w-6xl mx-auto px-6 py-10 space-y-6">
         <h1 className="text-2xl font-bold text-gray-900">KYC Status — Pit Owners</h1>
+
+        {migrationPending && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+            <p className="font-semibold text-amber-800 text-sm">Database migration required</p>
+            <p className="text-sm text-amber-700 mt-1">
+              Run <code className="bg-amber-100 px-1 rounded font-mono text-xs">prisma/manual-migrations/phase1_compliance.sql</code> in the Supabase SQL Editor to enable KYC tracking.
+            </p>
+          </div>
+        )}
 
         {/* KPI row */}
         <div className="grid grid-cols-3 gap-4">

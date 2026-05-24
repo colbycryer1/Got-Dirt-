@@ -2,9 +2,25 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import Link from "next/link";
 import { centsToDisplay } from "@/types";
 import AMLFlagActions from "./AMLFlagActions";
+
+type FlagWithRelations = Prisma.TransactionFlagGetPayload<{
+  include: {
+    settlement: {
+      include: {
+        order: {
+          include: {
+            pit:   { select: { name: true } };
+            buyer: { select: { name: true; company: true; email: true } };
+          };
+        };
+      };
+    };
+  };
+}>;
 
 const FLAG_STYLES: Record<string, string> = {
   UNUSUAL_VOLUME:          "bg-red-100 text-red-700",
@@ -23,22 +39,29 @@ export default async function AdminAMLPage() {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") redirect("/dashboard");
 
-  const flags = await prisma.transactionFlag.findMany({
-    include: {
-      settlement: {
-        include: {
-          order: {
-            include: {
-              pit:   { select: { name: true } },
-              buyer: { select: { name: true, company: true, email: true } },
+  let flags: FlagWithRelations[] = [];
+  let migrationPending = false;
+
+  try {
+    flags = await prisma.transactionFlag.findMany({
+      include: {
+        settlement: {
+          include: {
+            order: {
+              include: {
+                pit:   { select: { name: true } },
+                buyer: { select: { name: true, company: true, email: true } },
+              },
             },
           },
         },
       },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-  });
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+  } catch {
+    migrationPending = true;
+  }
 
   const open     = flags.filter((f) => !f.resolution).length;
   const escalated = flags.filter((f) => f.resolution === "ESCALATED").length;
@@ -62,12 +85,23 @@ export default async function AdminAMLPage() {
         </div>
         <p className="text-sm text-gray-500 -mt-4">Automatically generated during COB settlement. Review, clear, or escalate each flag.</p>
 
-        {flags.length === 0 ? (
+        {migrationPending && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+            <p className="font-semibold text-amber-800 text-sm">Database migration required</p>
+            <p className="text-sm text-amber-700 mt-1">
+              Run <code className="bg-amber-100 px-1 rounded font-mono text-xs">prisma/manual-migrations/phase1_compliance.sql</code> in the Supabase SQL Editor to enable AML tracking.
+            </p>
+          </div>
+        )}
+
+        {!migrationPending && flags.length === 0 && (
           <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
             <p className="text-4xl mb-4">✅</p>
             <p className="font-semibold text-gray-600">No AML flags</p>
           </div>
-        ) : (
+        )}
+
+        {!migrationPending && flags.length > 0 && (
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -115,3 +149,4 @@ export default async function AdminAMLPage() {
     </div>
   );
 }
+
