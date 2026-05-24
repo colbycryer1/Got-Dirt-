@@ -41,6 +41,11 @@ export interface PitSummary {
   notes: string | null;
   ownerId: string | null;
   materialTypes: string[];
+  hoursOpen: string | null;
+  hoursClose: string | null;
+  operatorProvided: boolean;
+  equipmentProvided: boolean;
+  equipmentNotes: string | null;
 }
 
 export interface TransactionCalculation {

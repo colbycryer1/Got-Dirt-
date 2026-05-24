@@ -5,7 +5,7 @@ import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { PitSummary } from "@/types";
 import { SearchPanel } from "./SearchPanel";
-import PitBottomSheet from "./PitBottomSheet";
+import PitModal from "./PitModal";
 
 const ATLANTA = { lat: 33.749, lng: -84.388 };
 
@@ -19,11 +19,10 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
   const mapInstance = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
   const clustererRef = useRef<MarkerClusterer | null>(null);
-  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const fetchPitsRef = useRef<(lat: number, lng: number) => void>(() => {});
   const [pits, setPits] = useState<PitSummary[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedPit, setSelectedPit] = useState<PitSummary | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [radiusMiles, setRadiusMiles] = useState(50);
   const [filterType, setFilterType] = useState<string>("");
   const [filterAccepting, setFilterAccepting] = useState<string>("");
@@ -54,7 +53,6 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
     }
   }, [radiusMiles, filterType, filterAccepting, filterMaterial, filterOperator, filterEquipment, filterState]);
 
-  // Keep ref current so the idle listener always calls the latest fetchPits
   useEffect(() => { fetchPitsRef.current = fetchPits; }, [fetchPits]);
 
   // Initialize Google Maps
@@ -77,9 +75,7 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
       });
 
       mapInstance.current = map;
-      infoWindowRef.current = new google.maps.InfoWindow();
 
-      // Fetch pits when map stops moving — use ref so filters/radius stay current
       map.addListener("idle", () => {
         const center = map.getCenter();
         if (center) fetchPitsRef.current(center.lat(), center.lng());
@@ -93,7 +89,6 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
     const map = mapInstance.current;
     if (!map) return;
 
-    // Tear down previous clusterer and markers
     if (clustererRef.current) {
       clustererRef.current.clearMarkers();
       clustererRef.current.setMap(null);
@@ -104,7 +99,7 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
 
     const newMarkers: google.maps.Marker[] = [];
 
-    pits.forEach((pit) => {
+    pits.forEach((pit, index) => {
       const iconUrl = pit.accepting
         ? "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(pinSvg("green"))
         : "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(pinSvg("red"));
@@ -119,13 +114,7 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
         },
       });
 
-      marker.addListener("click", () => {
-        setSelectedPit(pit);
-        if (window.innerWidth >= 768 && infoWindowRef.current) {
-          infoWindowRef.current.setContent(buildInfoWindowContent(pit));
-          infoWindowRef.current.open(map, marker);
-        }
-      });
+      marker.addListener("click", () => setSelectedIndex(index));
 
       newMarkers.push(marker);
     });
@@ -193,9 +182,11 @@ export function MapContainer({ apiKey, loggedIn = false }: Props) {
         pitCount={pits.length}
       />
 
-      <PitBottomSheet
-        pit={selectedPit}
-        onClose={() => setSelectedPit(null)}
+      <PitModal
+        pits={pits}
+        selectedIndex={selectedIndex}
+        onClose={() => setSelectedIndex(null)}
+        onNavigate={setSelectedIndex}
         loggedIn={loggedIn}
       />
     </div>
@@ -208,28 +199,4 @@ function pinSvg(color: "green" | "red") {
     <path d="M16 0C9.37 0 4 5.37 4 12c0 9 12 28 12 28s12-19 12-28c0-6.63-5.37-12-12-12z" fill="${fill}"/>
     <circle cx="16" cy="12" r="5" fill="white"/>
   </svg>`;
-}
-
-function buildInfoWindowContent(pit: PitSummary): string {
-  const typeLabel = pit.pitType === "WASTE" ? "Waste Pit" : pit.pitType === "BORROW" ? "Borrow Pit" : "Waste & Borrow";
-  const statusColor = pit.accepting ? "#16a34a" : "#dc2626";
-  const statusText = pit.accepting ? "Open" : "Closed";
-
-  let rates = "";
-  if (pit.dumpRateCents) rates += `<div>Dump rate: <b>$${(pit.dumpRateCents / 100).toFixed(2)}/load</b></div>`;
-  if (pit.borrowRateCents) rates += `<div>Borrow rate: <b>$${(pit.borrowRateCents / 100).toFixed(2)}/load</b></div>`;
-  if (pit.hasTopsoil && pit.topsoilRateCents) rates += `<div>Topsoil: <b>$${(pit.topsoilRateCents / 100).toFixed(2)}/load</b></div>`;
-  if (!rates) rates = `<div style="color:#6b7280">No rates listed yet</div>`;
-
-  return `
-    <div style="font-family:Arial,sans-serif;min-width:180px;max-width:240px;padding:4px">
-      <div style="font-weight:700;font-size:14px;margin-bottom:4px">${pit.name}</div>
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <span style="background:#f3f4f6;border-radius:4px;padding:2px 6px;font-size:11px">${typeLabel}</span>
-        <span style="color:${statusColor};font-size:11px;font-weight:600">● ${statusText}</span>
-      </div>
-      <div style="font-size:12px;color:#374151;margin-bottom:8px">${rates}</div>
-      <a href="/pit/${pit.id}" style="display:inline-block;background:#16a34a;color:white;text-decoration:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600">View Details →</a>
-    </div>
-  `;
 }
