@@ -57,7 +57,7 @@ async function runCOBSettlement(date: Date): Promise<SettlementResult[]> {
       date:   { lte: nextDay },
     },
     include: {
-      pit:   { select: { id: true, stripeAccountId: true, dumpRateCents: true } },
+      pit:   { select: { id: true, dumpRateCents: true, owner: { select: { stripeAccountId: true } } } },
       buyer: { select: { id: true, stripeCustomerId: true, defaultPaymentMethodId: true } },
     },
   });
@@ -106,8 +106,9 @@ async function runCOBSettlement(date: Date): Promise<SettlementResult[]> {
       const buyer = order.buyer;
       const pit   = order.pit;
 
-      // Only attempt Stripe charge if pit has a connected account and buyer has payment method
-      if (pit.stripeAccountId && buyer.stripeCustomerId && buyer.defaultPaymentMethodId) {
+      // Only attempt Stripe charge if pit owner has a connected account and buyer has payment method
+      const pitStripeAccountId = pit.owner?.stripeAccountId ?? null;
+      if (pitStripeAccountId && buyer.stripeCustomerId && buyer.defaultPaymentMethodId) {
         const idempotencyKey = `cob-${order.id}-${date.toISOString().slice(0, 10)}`;
 
         const paymentIntent = await stripe.paymentIntents.create({
@@ -118,7 +119,7 @@ async function runCOBSettlement(date: Date): Promise<SettlementResult[]> {
           confirm:                true,
           off_session:            true,
           application_fee_amount: commissionCents,
-          transfer_data:          { destination: pit.stripeAccountId },
+          transfer_data:          { destination: pitStripeAccountId },
           description:            `Got Dirt? — COB settlement ${date.toISOString().slice(0, 10)} — Order ${order.id}`,
           metadata:               { order_id: order.id, load_count: String(loads.length) },
         }, { idempotencyKey });
