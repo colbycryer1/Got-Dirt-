@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 const BUCKET_SIZE_CENTS = 500; // $5 buckets
 const MIN_SAMPLE_SIZE   = 10;  // don't suggest until we have enough data
 
