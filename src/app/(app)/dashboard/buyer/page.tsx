@@ -60,15 +60,16 @@ export default async function BuyerDashboardPage() {
       where:  { order: { buyerUserId: session.user.id }, status: "PROCESSED" },
       _sum:   { grossAmountCents: true },
     }),
-    // Pending/confirmed haul orders placed by this buyer
+    // Active/pending haul orders placed by this buyer (for dashboard widget)
     prisma.haulOrder.findMany({
       where:   {
         buyerUserId: session.user.id,
-        status:      { in: ["PENDING", "CONFIRMED"] },
+        status:      { in: ["PENDING", "CONFIRMED", "ACTIVE"] },
       },
       include: {
         driver:  { include: { user: { select: { name: true } } } },
         carrier: { select: { companyName: true } },
+        pit:     { select: { name: true } },
       },
       orderBy: { scheduledDate: "asc" },
       take:    5,
@@ -192,7 +193,7 @@ export default async function BuyerDashboardPage() {
         </div>
 
         {/* Active Orders */}
-        {activeOrders.length > 0 && (
+        {(activeOrders.length > 0 || pendingHaulOrders.length > 0) && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900">Active Orders</h2>
@@ -202,7 +203,7 @@ export default async function BuyerDashboardPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    {["Project", "Pit", "Date", "Loads"].map((h) => (
+                    {["Type", "Project / Hauler", "Pit", "Date", "Loads"].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -210,6 +211,9 @@ export default async function BuyerDashboardPage() {
                 <tbody className="divide-y divide-gray-100">
                   {activeOrders.map((o) => (
                     <tr key={o.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">Pit</span>
+                      </td>
                       <td className="px-4 py-3 font-medium text-gray-900">{o.project.name}</td>
                       <td className="px-4 py-3 text-gray-600">{o.pit.name}</td>
                       <td className="px-4 py-3 text-gray-500">{new Date(o.date).toLocaleDateString()}</td>
@@ -220,45 +224,37 @@ export default async function BuyerDashboardPage() {
                       </td>
                     </tr>
                   ))}
+                  {pendingHaulOrders.map((o) => {
+                    const haulerName = o.carrier?.companyName
+                      ?? (o.driver?.user.name)
+                      ?? ((!o.driverId && !o.carrierId) ? "Open Broadcast" : "Awaiting hauler");
+                    const statusColor = o.status === "CONFIRMED" ? "bg-green-100 text-green-700"
+                      : o.status === "ACTIVE" ? "bg-blue-100 text-blue-700"
+                      : "bg-amber-100 text-amber-700";
+                    return (
+                      <tr key={o.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">Haul</span>
+                        </td>
+                        <td className="px-4 py-3 font-medium text-gray-900">{haulerName}</td>
+                        <td className="px-4 py-3 text-gray-600">{o.pit?.name ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-500">
+                          {new Date(o.scheduledDate).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusColor}`}>
+                            {o.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* Pending Haul Orders */}
-        {pendingHaulOrders.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-bold text-gray-900">Haul Orders</h2>
-              <Link href="/dashboard/buyer/haul-orders" className="text-sm text-amber-600 hover:underline">View all →</Link>
-            </div>
-            <div className="space-y-3">
-              {pendingHaulOrders.map((o) => {
-                const haulerName = o.carrier?.companyName
-                  ?? (o.driver?.user.name)
-                  ?? ((!o.driverId && !o.carrierId) ? "Open Broadcast" : "Awaiting hauler");
-                const statusColor = o.status === "CONFIRMED"
-                  ? "bg-green-100 text-green-700"
-                  : "bg-amber-100 text-amber-700";
-                return (
-                  <div key={o.id} className="bg-white rounded-2xl border border-gray-200 p-4 flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-gray-900 text-sm">{haulerName}</p>
-                      <p className="text-xs text-gray-400">
-                        {new Date(o.scheduledDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                        {" · "}{o.loads} load{o.loads !== 1 ? "s" : ""}
-                      </p>
-                    </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${statusColor}`}>
-                      {o.status}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {/* Available broadcast jobs — carriers only */}
         {role === "CARRIER" && (

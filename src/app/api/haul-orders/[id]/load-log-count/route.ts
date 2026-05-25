@@ -20,7 +20,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Allow buyer or hauler to query
   const isAuthorized =
     order.buyerUserId === session.user.id ||
     order.driver?.userId === session.user.id ||
@@ -30,21 +29,42 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   if (!order.pitId) return NextResponse.json({ count: 0, pitName: null });
 
-  const startOfDay = new Date(order.scheduledDate);
-  startOfDay.setUTCHours(0, 0, 0, 0);
-  const endOfDay = new Date(order.scheduledDate);
-  endOfDay.setUTCHours(23, 59, 59, 999);
+  // Primary: find the buyer's pit material Orders at this pit on the scheduled date,
+  // then count their LoadEvents. This matches the same Load Log the buyer sees.
+  const scheduledDateOnly = order.scheduledDate.toISOString().slice(0, 10); // YYYY-MM-DD
 
-  const count = await prisma.loadEvent.count({
+  const relatedOrders = await prisma.order.findMany({
     where: {
-      pitId: order.pitId,
-      createdAt: { gte: startOfDay, lte: endOfDay },
+      pitId:       order.pitId,
+      buyerUserId: order.buyerUserId,
+      date:        new Date(scheduledDateOnly),
     },
+    select: { id: true },
   });
+
+  let count = 0;
+  if (relatedOrders.length > 0) {
+    const orderIds = relatedOrders.map((o) => o.id);
+    count = await prisma.loadEvent.count({
+      where: { orderId: { in: orderIds } },
+    });
+  }
+
+  // Fallback: if no linked Orders exist, count all LoadEvents at the pit on that calendar day
+  if (count === 0) {
+    const startOfDay = new Date(scheduledDateOnly + "T00:00:00.000Z");
+    const endOfDay   = new Date(scheduledDateOnly + "T23:59:59.999Z");
+    count = await prisma.loadEvent.count({
+      where: {
+        pitId:     order.pitId,
+        createdAt: { gte: startOfDay, lte: endOfDay },
+      },
+    });
+  }
 
   return NextResponse.json({
     count,
     pitName: order.pit?.name ?? null,
-    date: order.scheduledDate,
+    date:    order.scheduledDate,
   });
 }
