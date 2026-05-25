@@ -125,6 +125,50 @@ export async function POST(req: Request) {
     }
   }
 
+  // For broadcast orders, pre-fetch and filter available haulers BEFORE creating
+  // the order. If nobody is available at the requested time, block immediately.
+  // Results are stored here and reused for the email step to avoid a second query.
+  let broadcastDriverEmails: string[] = [];
+  let broadcastCarrierEmails: string[] = [];
+
+  if (broadcast && !isBuyerOp) {
+    const broadcastDate      = new Date(orderData.scheduledDate);
+    const broadcastProjectId = orderData.projectId ?? null;
+
+    const [allDrivers, allCarriers] = await Promise.all([
+      prisma.driverProfile.findMany({
+        where:  { profilePublic: true, docsVerified: true },
+        select: { id: true, user: { select: { email: true } } },
+      }),
+      pitRateBroadcast
+        ? prisma.carrierProfile.findMany({
+            where:  { profilePublic: true },
+            select: { id: true, user: { select: { email: true } } },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const [availDriverIds, availCarrierIds] = await Promise.all([
+      filterAvailableHaulers("driver",  allDrivers.map((d) => d.id),  broadcastDate, session.user.id, broadcastProjectId),
+      allCarriers.length > 0
+        ? filterAvailableHaulers("carrier", allCarriers.map((c) => c.id), broadcastDate, session.user.id, broadcastProjectId)
+        : Promise.resolve([]),
+    ]);
+
+    const availDriverSet  = new Set(availDriverIds);
+    const availCarrierSet = new Set(availCarrierIds);
+
+    broadcastDriverEmails  = allDrivers.filter((d) => availDriverSet.has(d.id)).map((d) => d.user.email).filter(Boolean) as string[];
+    broadcastCarrierEmails = allCarriers.filter((c) => availCarrierSet.has(c.id)).map((c) => c.user.email).filter(Boolean) as string[];
+
+    if (broadcastDriverEmails.length === 0 && broadcastCarrierEmails.length === 0) {
+      return NextResponse.json(
+        { error: "No haulers are available at the selected time. All verified drivers and carriers have a confirmed order within 4 hours of your scheduled time. Please choose a different time." },
+        { status: 409 },
+      );
+    }
+  }
+
   // For direct requests, verify the selected hauler has no conflicting orders
   // before creating the order. Return 409 so the form can show the error.
   if (!isBuyerOp && !broadcast && (orderData.driverId || orderData.carrierId)) {
@@ -210,38 +254,8 @@ export async function POST(req: Request) {
   const buyerCompany = buyer?.company ?? buyer?.name ?? null;
 
   if (broadcast) {
-    // Buyer-rate broadcasts go to INDEPENDENT DRIVERS ONLY.
-    // Pit-rate broadcasts (pit owner locked a daily rate) go to ALL haulers.
-    const [allDrivers, allCarriers] = await Promise.all([
-      prisma.driverProfile.findMany({
-        where:  { profilePublic: true, docsVerified: true },
-        select: { id: true, user: { select: { email: true } } },
-      }),
-      pitRateBroadcast
-        ? prisma.carrierProfile.findMany({
-            where:  { profilePublic: true },
-            select: { id: true, user: { select: { email: true } } },
-          })
-        : Promise.resolve([]),
-    ]);
-
-    // Filter out haulers who already have a confirmed order within ±4 hours
-    // (same buyer / same project are never treated as conflicts)
-    const newOrderDate      = new Date(parsed.data.scheduledDate);
-    const newOrderProjectId = parsed.data.projectId ?? null;
-    const [availDriverIds, availCarrierIds] = await Promise.all([
-      filterAvailableHaulers("driver",  allDrivers.map((d) => d.id),  newOrderDate, session.user.id, newOrderProjectId),
-      allCarriers.length > 0
-        ? filterAvailableHaulers("carrier", allCarriers.map((c) => c.id), newOrderDate, session.user.id, newOrderProjectId)
-        : Promise.resolve([]),
-    ]);
-
-    const availDriverSet  = new Set(availDriverIds);
-    const availCarrierSet = new Set(availCarrierIds);
-    const emails = [
-      ...allDrivers.filter((d) => availDriverSet.has(d.id)).map((d) => d.user.email).filter(Boolean),
-      ...allCarriers.filter((c) => availCarrierSet.has(c.id)).map((c) => c.user.email).filter(Boolean),
-    ] as string[];
+    // Email lists were pre-filtered above before order creation
+    const emails = [...broadcastDriverEmails, ...broadcastCarrierEmails];
     if (emails.length > 0) {
       sendHaulBroadcast({
         haulerEmails: emails,
