@@ -17,48 +17,69 @@ interface Props {
 
 const DEPOSIT_PERCENT = 25;
 
-type Mode = "direct" | "broadcast";
+type Mode       = "direct" | "broadcast" | "self";
+type HaulerType = "driver" | "carrier";
+
+const TRUCK_TYPES = [
+  "Pickup / Flatbed",
+  "Single Axle Dump",
+  "Tandem Axle Dump",
+  "Super 10 Dump",
+  "Tri-Axle Dump",
+  "Quad Axle Dump",
+  "Quint Axle Dump",
+  "Semi End Dump",
+  "Semi Side Dump",
+  "Belly Dump",
+  "Transfer (Full)",
+  "Other",
+];
 
 export default function NewHaulOrderForm({ projects, pits, drivers, carriers }: Props) {
   const router = useRouter();
 
-  const [mode,          setMode]          = useState<Mode>("direct");
-  const [haulerType,    setHaulerType]    = useState<"driver" | "carrier">("driver");
-  const [selectedId,    setSelectedId]    = useState("");
-  const [broadcastRate, setBroadcastRate] = useState("");
-  const [pitId,         setPitId]         = useState("");
-  const [projectId,     setProjectId]     = useState("");
-  const [scheduledDate, setScheduledDate] = useState("");
-  const [loads,         setLoads]         = useState("1");
-  const [notes,         setNotes]         = useState("");
-  const [expiresIn,     setExpiresIn]     = useState("60");
-  const [submitting,    setSubmitting]    = useState(false);
-  const [error,         setError]         = useState("");
+  const [mode,             setMode]             = useState<Mode>("direct");
+  const [haulerType,       setHaulerType]       = useState<HaulerType>("driver");
+  const [selectedId,       setSelectedId]       = useState("");
+  const [broadcastRate,    setBroadcastRate]    = useState("");
+  const [selfTruckType,    setSelfTruckType]    = useState("");
+  const [selfRatePerLoad,  setSelfRatePerLoad]  = useState("");
+  const [pitId,            setPitId]            = useState("");
+  const [projectId,        setProjectId]        = useState("");
+  const [scheduledDate,    setScheduledDate]    = useState("");
+  const [loads,            setLoads]            = useState("1");
+  const [notes,            setNotes]            = useState("");
+  const [expiresIn,        setExpiresIn]        = useState("60");
+  const [submitting,       setSubmitting]       = useState(false);
+  const [error,            setError]            = useState("");
 
   const list = haulerType === "driver" ? drivers : carriers;
   const selected = mode === "direct" ? list.find((x) => x.id === selectedId) : null;
 
-  const rateInCents = mode === "direct"
-    ? (selected?.haulRateCents ?? 0)
-    : Math.round(parseFloat(broadcastRate || "0") * 100);
+  const rateInCents =
+    mode === "direct"    ? (selected?.haulRateCents ?? 0)
+    : mode === "broadcast" ? Math.round(parseFloat(broadcastRate || "0") * 100)
+    : Math.round(parseFloat(selfRatePerLoad || "0") * 100); // self
+
   const loadsNum = parseInt(loads) || 0;
   const total    = rateInCents * loadsNum;
-  const deposit  = Math.round(total * DEPOSIT_PERCENT / 100);
+  const deposit  = mode === "self" ? 0 : Math.round(total * DEPOSIT_PERCENT / 100);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (mode === "direct" && !selectedId) { setError("Select a driver or carrier."); return; }
-    if (mode === "broadcast" && rateInCents <= 0) { setError("Enter your offered rate per load."); return; }
-    if (!pitId) { setError("Select the pit you are hauling from."); return; }
+    if (mode === "direct" && !selectedId)                          { setError("Select a driver or carrier."); return; }
+    if (mode === "broadcast" && rateInCents <= 0)                  { setError("Enter your offered rate per load."); return; }
+    if (mode === "self" && !selfTruckType)                         { setError("Select your truck type."); return; }
+    if (mode === "self" && rateInCents <= 0)                       { setError("Enter the cost per load for cost tracking."); return; }
+    if (!pitId)                                                    { setError("Select the pit you are hauling from."); return; }
     setSubmitting(true);
     setError("");
     try {
-      const expiresAt = mode === "broadcast" || expiresIn
+      const expiresAt = (mode === "broadcast" || (mode === "direct" && expiresIn))
         ? new Date(Date.now() + parseInt(expiresIn) * 60 * 1000).toISOString()
         : undefined;
 
       const body: Record<string, unknown> = {
-        broadcast:           mode === "broadcast",
         pitId,
         projectId:           projectId || undefined,
         scheduledDate:       new Date(scheduledDate).toISOString(),
@@ -67,10 +88,21 @@ export default function NewHaulOrderForm({ projects, pits, drivers, carriers }: 
         totalEstimatedCents: total,
         depositHoldCents:    deposit,
         notes:               notes || undefined,
-        expiresAt,
       };
+
       if (mode === "direct") {
+        body.broadcast = false;
         body[haulerType === "driver" ? "driverId" : "carrierId"] = selectedId;
+        body.expiresAt = expiresAt;
+      } else if (mode === "broadcast") {
+        body.broadcast = true;
+        body.expiresAt = expiresAt;
+      } else {
+        // Buyer/Operator — self haul
+        body.broadcast              = false;
+        body.buyerOperating         = true;
+        body.operatorTruckType      = selfTruckType;
+        body.operatorTruckRateCents = rateInCents;
       }
 
       const res = await fetch("/api/haul-orders", {
@@ -105,18 +137,27 @@ export default function NewHaulOrderForm({ projects, pits, drivers, carriers }: 
       <div>
         <label className={labelClass}>Request Type</label>
         <div className="flex rounded-xl border border-gray-200 overflow-hidden">
-          {(["direct", "broadcast"] as Mode[]).map((m) => (
-            <button key={m} type="button"
-              onClick={() => { setMode(m); setSelectedId(""); }}
+          {([
+            { key: "direct",    label: "Direct Request" },
+            { key: "broadcast", label: "Open Broadcast" },
+            { key: "self",      label: "Buyer / Operator" },
+          ] as { key: Mode; label: string }[]).map((m) => (
+            <button key={m.key} type="button"
+              onClick={() => { setMode(m.key); setSelectedId(""); }}
               className={`flex-1 py-2.5 text-sm font-semibold transition-colors
-                ${mode === m ? "bg-amber-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
-              {m === "direct" ? "Direct Request" : "Open Broadcast"}
+                ${mode === m.key ? "bg-amber-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+              {m.label}
             </button>
           ))}
         </div>
         {mode === "broadcast" && (
           <p className="text-xs text-gray-400 mt-2">
             Broadcast sends this job to all verified drivers and carriers. First to accept gets it.
+          </p>
+        )}
+        {mode === "self" && (
+          <p className="text-xs text-gray-400 mt-2">
+            Use your own truck. Rate entered is for internal cost tracking and project/job cost reporting — no payment is processed through the platform.
           </p>
         )}
       </div>
@@ -127,7 +168,7 @@ export default function NewHaulOrderForm({ projects, pits, drivers, carriers }: 
           <div>
             <label className={labelClass}>Haul by</label>
             <div className="flex rounded-xl border border-gray-200 overflow-hidden">
-              {(["driver", "carrier"] as const).map((t) => (
+              {(["driver", "carrier"] as HaulerType[]).map((t) => (
                 <button key={t} type="button"
                   onClick={() => { setHaulerType(t); setSelectedId(""); }}
                   className={`flex-1 py-2.5 text-sm font-semibold transition-colors
@@ -193,6 +234,45 @@ export default function NewHaulOrderForm({ projects, pits, drivers, carriers }: 
         </div>
       )}
 
+      {/* Buyer/Operator mode: truck type + cost per load */}
+      {mode === "self" && (
+        <>
+          <div>
+            <label className={labelClass}>Truck Type *</label>
+            <select
+              required
+              value={selfTruckType}
+              onChange={(e) => setSelfTruckType(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">— Select truck type —</option>
+              {TRUCK_TYPES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Cost Per Load (for internal accounting) *</label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+              <input
+                required
+                type="number"
+                min="0"
+                step="0.01"
+                value={selfRatePerLoad}
+                onChange={(e) => setSelfRatePerLoad(e.target.value)}
+                placeholder="0.00"
+                className={`${inputClass} pl-8`}
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              Used for project/job cost reporting and Procore, ACC, and accounting software exports. No charge is collected.
+            </p>
+          </div>
+        </>
+      )}
+
       {/* Pit — required */}
       <div>
         <label className={labelClass}>Pickup Pit *</label>
@@ -214,7 +294,7 @@ export default function NewHaulOrderForm({ projects, pits, drivers, carriers }: 
           </select>
         )}
         <p className="text-xs text-gray-400 mt-1">
-          The pit your hauler will pick up from. Loads logged at this pit are automatically tracked to this order.
+          The pit loads are picked up from. Loads logged at this pit are automatically tracked to this order.
         </p>
       </div>
 
@@ -226,6 +306,11 @@ export default function NewHaulOrderForm({ projects, pits, drivers, carriers }: 
             <option value="">No project</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
+          {mode === "self" && (
+            <p className="text-xs text-gray-400 mt-1">
+              Required for Procore / ACC / QBO job cost export.
+            </p>
+          )}
         </div>
       )}
 
@@ -251,56 +336,76 @@ export default function NewHaulOrderForm({ projects, pits, drivers, carriers }: 
           className={`${inputClass} resize-none`} />
       </div>
 
-      {/* FCFS expiry — always shown for broadcast, optional for direct */}
-      <div className="py-3 border-t border-gray-100">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-sm font-semibold text-gray-700">
-            {mode === "broadcast" ? "Broadcast Expiry" : "First-Come, First-Served Expiry"}
-          </span>
-          {mode === "broadcast" && (
-            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">Required</span>
-          )}
+      {/* FCFS expiry — broadcast and direct only */}
+      {mode !== "self" && (
+        <div className="py-3 border-t border-gray-100">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-sm font-semibold text-gray-700">
+              {mode === "broadcast" ? "Broadcast Expiry" : "First-Come, First-Served Expiry"}
+            </span>
+            {mode === "broadcast" && (
+              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">Required</span>
+            )}
+          </div>
+          <p className="text-xs text-gray-400 mb-2">
+            {mode === "broadcast"
+              ? "The job expires if no one claims it in time."
+              : "Order expires if not accepted within the time window."}
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Expires in</span>
+            <select value={expiresIn} onChange={(e) => setExpiresIn(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1">
+              <option value="30">30 min</option>
+              <option value="60">1 hour</option>
+              <option value="120">2 hours</option>
+              <option value="240">4 hours</option>
+              <option value="1440">24 hours</option>
+            </select>
+          </div>
         </div>
-        <p className="text-xs text-gray-400 mb-2">
-          {mode === "broadcast"
-            ? "The job expires if no one claims it in time."
-            : "Order expires if not accepted within the time window."}
-        </p>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">Expires in</span>
-          <select value={expiresIn} onChange={(e) => setExpiresIn(e.target.value)}
-            className="text-xs border border-gray-200 rounded-lg px-2 py-1">
-            <option value="30">30 min</option>
-            <option value="60">1 hour</option>
-            <option value="120">2 hours</option>
-            <option value="240">4 hours</option>
-            <option value="1440">24 hours</option>
-          </select>
-        </div>
-      </div>
+      )}
 
       {/* Order summary */}
       {loadsNum > 0 && rateInCents > 0 && (
         <div className="bg-gray-50 rounded-2xl p-5 space-y-2">
-          <p className="text-sm font-semibold text-gray-700 mb-3">Order Summary</p>
+          <p className="text-sm font-semibold text-gray-700 mb-3">
+            {mode === "self" ? "Cost Summary (Internal)" : "Order Summary"}
+          </p>
           <div className="flex justify-between text-sm">
             <span className="text-gray-500">{loadsNum} load{loadsNum !== 1 ? "s" : ""} × ${(rateInCents / 100).toFixed(2)}</span>
             <span className="font-semibold">${(total / 100).toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
-            <span className="text-gray-500">Deposit hold at booking ({DEPOSIT_PERCENT}%)</span>
-            <span className="font-bold text-amber-700">${(deposit / 100).toFixed(2)}</span>
-          </div>
-          <p className="text-xs text-gray-400">Card is authorized now, charged after haul completion.</p>
+          {mode !== "self" && (
+            <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
+              <span className="text-gray-500">Deposit hold at booking ({DEPOSIT_PERCENT}%)</span>
+              <span className="font-bold text-amber-700">${(deposit / 100).toFixed(2)}</span>
+            </div>
+          )}
+          {mode === "self" ? (
+            <p className="text-xs text-gray-400">Internal cost only — no charge collected. Exported to your project accounting.</p>
+          ) : (
+            <p className="text-xs text-gray-400">Card is authorized now, charged after haul completion.</p>
+          )}
         </div>
       )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <button type="submit"
-        disabled={submitting || !pitId || (mode === "direct" && !selectedId) || (mode === "broadcast" && rateInCents <= 0)}
+        disabled={
+          submitting
+          || !pitId
+          || (mode === "direct" && !selectedId)
+          || (mode === "broadcast" && rateInCents <= 0)
+          || (mode === "self" && (!selfTruckType || rateInCents <= 0))
+        }
         className="w-full bg-amber-600 text-white py-3 rounded-xl font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors">
-        {submitting ? "Sending…" : mode === "broadcast" ? "Broadcast Haul Job" : "Send Haul Request"}
+        {submitting
+          ? "Saving…"
+          : mode === "broadcast" ? "Broadcast Haul Job"
+          : mode === "self"      ? "Save Self-Haul Order"
+          : "Send Haul Request"}
       </button>
     </form>
   );

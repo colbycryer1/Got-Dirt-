@@ -4,9 +4,11 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import LocationToggle from "./LocationToggle";
+import GpsLoadLogButton from "./GpsLoadLogButton";
 import AvailableJobsFeed from "./AvailableJobsFeed";
 import HaulOrderAlertModal from "./HaulOrderAlertModal";
 import LogoutButton from "@/components/LogoutButton";
+import { getHaulOrderLoadLogCounts } from "@/lib/haul-load-log";
 
 export const metadata = { title: "Driver Dashboard — Got Dirt?" };
 
@@ -45,6 +47,42 @@ export default async function DriverDashboard() {
   const pendingOrders   = haulOrders.filter((o) => o.status === "PENDING");
   const confirmedOrders = haulOrders.filter((o) => o.status === "CONFIRMED");
   const activeOrders    = haulOrders.filter((o) => o.status === "ACTIVE");
+
+  // Active/confirmed orders that have a pit — used for live load counts and GPS log button
+  const ordersWithPit = haulOrders.filter(
+    (o) => o.pitId && (o.status === "CONFIRMED" || o.status === "ACTIVE")
+  );
+
+  // Live pit operator Load Log counts (server-rendered, updates on each page load)
+  const pitLogCounts = await getHaulOrderLoadLogCounts(
+    ordersWithPit.map((o) => ({
+      id:            o.id,
+      pitId:         o.pitId,
+      buyerUserId:   o.buyerUserId,
+      scheduledDate: o.scheduledDate,
+    }))
+  );
+
+  // Sum of all pit operator counts across confirmed/active orders today
+  const totalPitLogCount = Object.values(pitLogCounts).reduce((s, n) => s + n, 0);
+
+  // Driver's own load log counts
+  const driverLogCounts = ordersWithPit.length > 0
+    ? await prisma.driverLoadLog.groupBy({
+        by:    ["haulOrderId"],
+        where: { haulOrderId: { in: ordersWithPit.map((o) => o.id) }, driverUserId: session.user.id },
+        _count: { id: true },
+      })
+    : [];
+  const totalDriverLogCount = driverLogCounts.reduce((s, r) => s + r._count.id, 0);
+
+  // Shape for GpsLoadLogButton
+  const activeOrdersForButton = ordersWithPit.map((o) => ({
+    id:       o.id,
+    pitName:  o.pit?.name ?? "Pit",
+    pitState: o.pit?.state ?? "",
+    loads:    o.loads,
+  }));
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -97,11 +135,41 @@ export default async function DriverDashboard() {
           ))}
         </div>
 
+        {/* Live Load Counts — shown only when there are active/confirmed orders with a pit */}
+        {ordersWithPit.length > 0 && (
+          <div className="grid grid-cols-2 gap-4">
+            {/* Pit operator's count */}
+            <div className="bg-white rounded-2xl border border-blue-200 p-5 text-center">
+              <div className="flex items-center justify-center gap-1.5 mb-1">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Pit Log (Live)</p>
+              </div>
+              <p className="text-4xl font-black text-gray-900">{totalPitLogCount}</p>
+              <p className="text-sm text-gray-500 mt-1">Loads at Pit</p>
+              <p className="text-xs text-gray-400 mt-0.5">Logged by pit operator</p>
+            </div>
+
+            {/* Driver's own GPS log count */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 text-center">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Your Log</p>
+              <p className="text-4xl font-black text-gray-900">{totalDriverLogCount}</p>
+              <p className="text-sm text-gray-500 mt-1">Loads Logged</p>
+              <p className="text-xs text-gray-400 mt-0.5">From GPS tap below</p>
+            </div>
+          </div>
+        )}
+
         {/* Live location toggle */}
         <LocationToggle
           enabled={profile?.liveLocationEnabled ?? false}
           lat={profile?.currentLat ?? null}
           lng={profile?.currentLng ?? null}
+        />
+
+        {/* GPS-gated load log button */}
+        <GpsLoadLogButton
+          locationEnabled={profile?.liveLocationEnabled ?? false}
+          activeOrders={activeOrdersForButton}
         />
 
         {/* Pending requests — action required */}
@@ -148,26 +216,42 @@ export default async function DriverDashboard() {
           <div>
             <h2 className="text-lg font-bold text-gray-900 mb-3">Upcoming</h2>
             <div className="space-y-3">
-              {confirmedOrders.map((o) => (
-                <div key={o.id} className="bg-white rounded-2xl border border-gray-200 p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-gray-900">{o.buyer.company ?? o.buyer.name ?? "Buyer"}</p>
-                        <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">CONFIRMED</span>
+              {confirmedOrders.map((o) => {
+                const pitCount = pitLogCounts[o.id];
+                return (
+                  <div key={o.id} className="bg-white rounded-2xl border border-gray-200 p-5 space-y-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-gray-900">{o.buyer.company ?? o.buyer.name ?? "Buyer"}</p>
+                          <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">CONFIRMED</span>
+                        </div>
+                        {o.pit && <p className="text-sm text-gray-500">{o.pit.name} · {o.pit.state}</p>}
+                        <p className="text-xs text-gray-400 mt-1">
+                          {new Date(o.scheduledDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                        </p>
                       </div>
-                      {o.pit && <p className="text-sm text-gray-500">{o.pit.name} · {o.pit.state}</p>}
-                      <p className="text-xs text-gray-400 mt-1">
-                        {new Date(o.scheduledDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                      </p>
+                      <div className="text-right shrink-0">
+                        {pitCount !== undefined ? (
+                          <>
+                            <p className="font-bold text-gray-900">{pitCount} load{pitCount !== 1 ? "s" : ""}</p>
+                            <p className="text-xs text-blue-600 font-semibold">Live · Pit Log</p>
+                          </>
+                        ) : (
+                          <p className="font-bold text-gray-900">{o.loads} load{o.loads !== 1 ? "s" : ""} (est.)</p>
+                        )}
+                        <p className="text-sm text-gray-500">${(o.haulRateCents / 100).toFixed(2)}/load</p>
+                      </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="font-bold text-gray-900">{o.loads} load{o.loads !== 1 ? "s" : ""}</p>
-                      <p className="text-sm text-gray-500">${(o.haulRateCents / 100).toFixed(2)}/load</p>
-                    </div>
+                    {pitCount !== undefined && o.pit && (
+                      <div className={`rounded-lg px-3 py-2 text-xs flex items-center gap-2 ${pitCount > 0 ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-500"}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${pitCount > 0 ? "bg-blue-500 animate-pulse" : "bg-gray-300"}`} />
+                        {pitCount > 0 ? `${pitCount} logged at ${o.pit.name}` : `Waiting for pit operator at ${o.pit.name}`}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

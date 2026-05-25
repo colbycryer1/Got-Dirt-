@@ -11,6 +11,9 @@ const createSchema = z.object({
   driverId:      z.string().optional(),
   carrierId:     z.string().optional(),
   broadcast:     z.boolean().optional().default(false),
+  buyerOperating:        z.boolean().optional().default(false),
+  operatorTruckType:     z.string().optional(),
+  operatorTruckRateCents: z.number().int().min(0).optional(),
   pitId:         z.string().optional(),
   projectId:     z.string().optional(),
   scheduledDate: z.string().datetime(),
@@ -22,8 +25,8 @@ const createSchema = z.object({
   expiresAt:     z.string().datetime().optional(),
 }).refine((d) => !(d.driverId && d.carrierId), {
   message: "Cannot assign both a driver and a carrier",
-}).refine((d) => d.broadcast || d.driverId || d.carrierId, {
-  message: "Either select a specific hauler or enable broadcast mode",
+}).refine((d) => d.broadcast || d.buyerOperating || d.driverId || d.carrierId, {
+  message: "Select a hauler, enable broadcast, or choose Buyer/Operator mode",
 });
 
 // GET /api/haul-orders — list for the current user (buyer, driver, or carrier)
@@ -101,9 +104,10 @@ export async function POST(req: Request) {
 
   const { broadcast, ...orderData } = parsed.data;
 
-  const haulFeePercent   = platformSettings?.haulFeePercent ?? 10.0;
-  const platformFeeCents = Math.round(orderData.totalEstimatedCents * haulFeePercent / 100);
-  const haulerPayoutCents = orderData.totalEstimatedCents - platformFeeCents;
+  const isBuyerOp = parsed.data.buyerOperating === true;
+  const haulFeePercent    = isBuyerOp ? 0 : (platformSettings?.haulFeePercent ?? 10.0);
+  const platformFeeCents  = isBuyerOp ? 0 : Math.round(orderData.totalEstimatedCents * haulFeePercent / 100);
+  const haulerPayoutCents = isBuyerOp ? 0 : orderData.totalEstimatedCents - platformFeeCents;
 
   const order = await prisma.haulOrder.create({
     data: {
@@ -111,11 +115,17 @@ export async function POST(req: Request) {
       ...orderData,
       scheduledDate:      new Date(orderData.scheduledDate),
       expiresAt:          orderData.expiresAt ? new Date(orderData.expiresAt) : undefined,
+      status:             isBuyerOp ? "CONFIRMED" : undefined,
       platformFeePercent: haulFeePercent,
       platformFeeCents,
       haulerPayoutCents,
     },
   });
+
+  // Buyer/Operator orders are self-haul cost-tracking only — no Stripe, no notifications
+  if (isBuyerOp) {
+    return NextResponse.json({ order, clientSecret: null }, { status: 201 });
+  }
 
   let clientSecret: string | null = null;
   if (parsed.data.depositHoldCents > 0 && customerId) {

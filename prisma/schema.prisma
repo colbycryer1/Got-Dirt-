@@ -774,7 +774,13 @@ model HaulOrder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  amendments HaulOrderAmendment[]
+  // Buyer self-haul (Buyer/Operator mode — cost tracking only, no hauler)
+  buyerOperating         Boolean @default(false)
+  operatorTruckType      String?
+  operatorTruckRateCents Int?
+
+  amendments     HaulOrderAmendment[]
+  driverLoadLogs DriverLoadLog[]
 
   @@index([buyerUserId])
   @@index([driverId])
@@ -816,4 +822,20 @@ model HaulOrderAmendment {
   @@index([haulOrderId])
   @@index([status])
   @@index([requestedByUserId])
+}
+
+model DriverLoadLog {
+  id           String    @id @default(cuid())
+  haulOrderId  String
+  haulOrder    HaulOrder @relation(fields: [haulOrderId], references: [id])
+  driverUserId String
+
+  lat     Float?
+  lng     Float?
+  speed   Float? // GPS speed in m/s at time of tap
+
+  loggedAt DateTime @default(now())
+
+  @@index([haulOrderId])
+  @@index([driverUserId])
 }

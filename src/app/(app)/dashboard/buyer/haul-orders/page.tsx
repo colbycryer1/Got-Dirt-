@@ -172,6 +172,7 @@ interface PlacedOrder {
   notes: string | null;
   driverId: string | null;
   carrierId: string | null;
+  buyerOperating: boolean;
   driver:  { truckType: string | null; user: { name: string | null; phone: string | null } } | null;
   carrier: { companyName: string | null; user: { name: string | null; phone: string | null } } | null;
   pit:     { name: string; state: string } | null;
@@ -198,13 +199,17 @@ interface IncomingOrder {
 }
 
 function PlacedOrderRow({ order, statusColors, logCount }: { order: PlacedOrder; statusColors: Record<string, string>; logCount?: number }) {
-  const haulerName = order.carrier?.companyName
+  const isSelfHaul = order.buyerOperating;
+  const haulerName = isSelfHaul
+    ? "Self-Haul (Buyer/Operator)"
+    : order.carrier?.companyName
     ?? order.carrier?.user.name
     ?? order.driver?.user.name
     ?? ((!order.driverId && !order.carrierId) ? "Open Broadcast" : "Unknown");
 
-  const haulerType = order.carrier ? "3PL" : order.driver ? "Driver" : "Broadcast";
-  const canComplete = order.status === "CONFIRMED" || order.status === "ACTIVE";
+  const haulerType = isSelfHaul ? "Self" : order.carrier ? "3PL" : order.driver ? "Driver" : "Broadcast";
+  const canComplete  = !isSelfHaul && (order.status === "CONFIRMED" || order.status === "ACTIVE");
+  const canEdit      = ["PENDING", "CONFIRMED"].includes(order.status) && order.scheduledDate > new Date();
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5">
@@ -212,10 +217,16 @@ function PlacedOrderRow({ order, statusColors, logCount }: { order: PlacedOrder;
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-bold text-gray-900">{haulerName}</p>
-            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{haulerType}</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${isSelfHaul ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-500"}`}>{haulerType}</span>
             <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusColors[order.status] ?? "bg-gray-100 text-gray-600"}`}>
               {order.status}
             </span>
+            {canEdit && (
+              <a href={`/dashboard/buyer/haul-orders/${order.id}/edit`}
+                className="text-xs text-amber-600 hover:text-amber-700 font-semibold">
+                Edit
+              </a>
+            )}
           </div>
           {order.driver?.truckType && <p className="text-sm text-gray-500 mt-0.5">{order.driver.truckType}</p>}
           {order.pit && <p className="text-sm text-gray-500">{order.pit.name} · {order.pit.state}</p>}
