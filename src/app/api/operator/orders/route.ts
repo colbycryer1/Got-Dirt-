@@ -28,7 +28,7 @@ export async function GET() {
       date: { gte: today },
     },
     include: {
-      pit: { select: { name: true, materialTypes: true, dumpRateCents: true, borrowRateCents: true, topsoilRateCents: true } },
+      pit: { select: { name: true, materialTypes: true, dumpRateCents: true, borrowRateCents: true, topsoilRateCents: true, materialRatesCents: true } },
       buyer: { select: { name: true, company: true, phone: true } },
       loadEvents: {
         where: { verified: true, createdAt: { gte: today } },

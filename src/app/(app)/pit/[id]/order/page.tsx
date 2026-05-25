@@ -10,6 +10,7 @@ interface Pit {
   name: string;
   address: string | null;
   state: string;
+  pitType: string;
   materialTypes: string[];
   operatorProvided: boolean;
   equipmentProvided: boolean;
@@ -17,6 +18,7 @@ interface Pit {
   dumpRateCents: number | null;
   borrowRateCents: number | null;
   topsoilRateCents: number | null;
+  materialRatesCents: Record<string, number> | null;
 }
 
 interface Project {
@@ -25,20 +27,33 @@ interface Project {
   location: string | null;
 }
 
+/** Which order types a pit supports based on its pit type */
+function supportedOrderTypes(pitType: string): ("BORROW" | "DUMP")[] {
+  if (pitType === "WASTE") return ["DUMP"];
+  if (pitType === "WASTE_BORROW") return ["BORROW", "DUMP"];
+  // BORROW, PRIVATE_BORROW_PIT, QUARRY — pickup only
+  return ["BORROW"];
+}
+
+function fmt(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
 export default function PlaceOrderPage() {
   const { status } = useSession();
   const router = useRouter();
   const params = useParams();
   const pitId = params.id as string;
 
-  const [pit, setPit] = useState<Pit | null>(null);
+  const [pit, setPit]         = useState<Pit | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [error, setError]       = useState("");
 
-  const [projectId, setProjectId] = useState("");
-  const [materialType, setMaterialType] = useState("");
+  const [projectId, setProjectId]         = useState("");
+  const [orderType, setOrderType]         = useState<"BORROW" | "DUMP" | "">("");
+  const [materialType, setMaterialType]   = useState("");
   const [estimatedLoads, setEstimatedLoads] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
 
@@ -53,17 +68,21 @@ export default function PlaceOrderPage() {
       fetch(`/api/pits/${pitId}`).then((r) => r.json()),
       fetch("/api/projects").then((r) => r.json()),
     ]).then(([pitData, projectData]) => {
-      setPit(pitData.pit ?? null);
+      const p: Pit = pitData.pit ?? null;
+      setPit(p);
       setProjects(projectData.projects ?? []);
-      if (pitData.pit?.materialTypes?.length > 0) {
-        setMaterialType(pitData.pit.materialTypes[0]);
+      if (p) {
+        const types = supportedOrderTypes(p.pitType);
+        // Auto-select if only one option
+        if (types.length === 1) setOrderType(types[0]);
+        if (p.materialTypes?.length > 0) setMaterialType(p.materialTypes[0]);
       }
     }).finally(() => setLoading(false));
   }, [status, pitId, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!projectId || !materialType || !date) return;
+    if (!projectId || !orderType || !materialType || !date) return;
     setSaving(true);
     setError("");
     try {
@@ -73,6 +92,7 @@ export default function PlaceOrderPage() {
         body: JSON.stringify({
           projectId,
           pitId,
+          orderType,
           materialType,
           estimatedLoads: estimatedLoads ? parseInt(estimatedLoads) : undefined,
           date,
@@ -105,8 +125,18 @@ export default function PlaceOrderPage() {
     );
   }
 
-  const inputClass = "w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500";
-  const labelClass = "block text-sm font-semibold text-gray-700 mb-1";
+  const inputClass  = "w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500";
+  const labelClass  = "block text-sm font-semibold text-gray-700 mb-1";
+  const types       = supportedOrderTypes(pit.pitType);
+  const showTypePicker = types.length > 1;
+
+  // Rate to display for selected order type
+  const rateForType = (type: "BORROW" | "DUMP") => {
+    const override = (pit.materialRatesCents ?? {})[materialType];
+    if (override) return override;
+    return type === "BORROW" ? pit.borrowRateCents : pit.dumpRateCents;
+  };
+  const selectedRate = orderType ? rateForType(orderType) : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -119,7 +149,7 @@ export default function PlaceOrderPage() {
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Place Order</h1>
         <p className="text-gray-500 text-sm mb-8">Order from <span className="font-medium text-gray-700">{pit.name}</span></p>
 
-        {/* Pit confirmation badges */}
+        {/* Pit badges */}
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div className={`rounded-xl p-3 text-center text-xs font-semibold ${pit.operatorProvided ? "bg-sky-50 text-sky-700 border border-sky-200" : "bg-gray-50 text-gray-400 border border-gray-200"}`}>
             Operator {pit.operatorProvided ? "✓ Provided" : "Not Provided"}
@@ -133,6 +163,59 @@ export default function PlaceOrderPage() {
         )}
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-200 p-6 space-y-5">
+
+          {/* Order type — only shown when pit supports both */}
+          {showTypePicker && (
+            <div>
+              <label className={labelClass}>What are you doing? *</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setOrderType("BORROW")}
+                  className={`rounded-xl border-2 p-4 text-left transition-colors ${
+                    orderType === "BORROW"
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-blue-300"
+                  }`}
+                >
+                  <p className="font-semibold text-gray-900 text-sm">Picking Up Material</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Borrow — taking material out</p>
+                  {pit.borrowRateCents && (
+                    <p className="text-xs font-bold text-blue-600 mt-1">{fmt(pit.borrowRateCents)}/load</p>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrderType("DUMP")}
+                  className={`rounded-xl border-2 p-4 text-left transition-colors ${
+                    orderType === "DUMP"
+                      ? "border-orange-500 bg-orange-50"
+                      : "border-gray-200 hover:border-orange-300"
+                  }`}
+                >
+                  <p className="font-semibold text-gray-900 text-sm">Dropping Off Material</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Dump — depositing waste</p>
+                  {pit.dumpRateCents && (
+                    <p className="text-xs font-bold text-orange-600 mt-1">{fmt(pit.dumpRateCents)}/load</p>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Auto-selected type banner */}
+          {!showTypePicker && orderType && (
+            <div className={`rounded-xl border px-4 py-3 text-sm font-semibold ${
+              orderType === "BORROW"
+                ? "bg-blue-50 border-blue-200 text-blue-800"
+                : "bg-orange-50 border-orange-200 text-orange-800"
+            }`}>
+              {orderType === "BORROW"
+                ? `Pickup (Borrow) — taking material from pit · ${pit.borrowRateCents ? fmt(pit.borrowRateCents) + "/load" : "Rate TBD"}`
+                : `Drop-off (Dump) — depositing material · ${pit.dumpRateCents ? fmt(pit.dumpRateCents) + "/load" : "Rate TBD"}`}
+            </div>
+          )}
+
           {/* Project */}
           <div>
             <label className={labelClass}>Project *</label>
@@ -144,12 +227,7 @@ export default function PlaceOrderPage() {
                 </Link>
               </div>
             ) : (
-              <select
-                required
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                className={inputClass}
-              >
+              <select required value={projectId} onChange={(e) => setProjectId(e.target.value)} className={inputClass}>
                 <option value="">Select a project…</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}{p.location ? ` — ${p.location}` : ""}</option>
@@ -161,16 +239,17 @@ export default function PlaceOrderPage() {
           {/* Material */}
           <div>
             <label className={labelClass}>Material *</label>
-            <select
-              required
-              value={materialType}
-              onChange={(e) => setMaterialType(e.target.value)}
-              className={inputClass}
-            >
+            <select required value={materialType} onChange={(e) => setMaterialType(e.target.value)} className={inputClass}>
               {pit.materialTypes.map((m) => (
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
+            {/* Per-material rate override notice */}
+            {materialType && orderType && selectedRate && (pit.materialRatesCents ?? {})[materialType] && (
+              <p className="text-xs text-amber-700 mt-1">
+                Custom rate for {materialType}: {fmt(selectedRate)}/load
+              </p>
+            )}
           </div>
 
           {/* Date */}
@@ -199,11 +278,23 @@ export default function PlaceOrderPage() {
             />
           </div>
 
+          {/* Rate summary */}
+          {orderType && selectedRate && (
+            <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-600 border border-gray-100">
+              Rate: <span className="font-bold text-gray-900">{fmt(selectedRate)}/load</span>
+              {estimatedLoads && parseInt(estimatedLoads) > 0 && (
+                <span className="ml-2 text-gray-400">
+                  · Est. total {fmt(selectedRate * parseInt(estimatedLoads))}
+                </span>
+              )}
+            </div>
+          )}
+
           {error && <p className="text-red-600 text-sm">{error}</p>}
 
           <button
             type="submit"
-            disabled={saving || !projectId || !materialType}
+            disabled={saving || !projectId || !orderType || !materialType}
             className="w-full bg-amber-600 text-white py-3 rounded-xl font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors"
           >
             {saving ? "Placing Order…" : "Place Order"}

@@ -13,6 +13,7 @@ interface LoadEvent {
 interface Order {
   id: string;
   date: string;
+  orderType: "BORROW" | "DUMP";
   buyer: { name: string | null; company: string | null; phone: string | null };
   pit: {
     name: string;
@@ -20,6 +21,7 @@ interface Order {
     dumpRateCents: number | null;
     borrowRateCents: number | null;
     topsoilRateCents: number | null;
+    materialRatesCents: Record<string, number> | null;
   };
   loadEvents: LoadEvent[];
 }
@@ -245,7 +247,16 @@ export default function OperatorPage() {
                   onClick={() => setSelectedOrder(o)}
                   className="w-full bg-gray-800 rounded-2xl p-4 text-left border border-gray-700 hover:border-amber-500 transition-colors"
                 >
-                  <p className="font-bold text-white">{o.pit.name}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-white">{o.pit.name}</p>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      o.orderType === "DUMP"
+                        ? "bg-orange-900 text-orange-300"
+                        : "bg-blue-900 text-blue-300"
+                    }`}>
+                      {o.orderType === "DUMP" ? "Dump" : "Borrow"}
+                    </span>
+                  </div>
                   <p className="text-sm text-gray-400">{o.buyer.company ?? o.buyer.name}</p>
                   <p className="text-xs text-gray-500 mt-1">{o.loadEvents.length} loads today</p>
                 </button>
@@ -260,7 +271,16 @@ export default function OperatorPage() {
         <div className="flex-1 flex flex-col p-4 gap-4">
           {/* Order info */}
           <div className="bg-gray-800 rounded-2xl p-4 border border-gray-700">
-            <p className="font-bold text-white text-base">{selectedOrder.pit.name}</p>
+            <div className="flex items-center justify-between mb-1">
+              <p className="font-bold text-white text-base">{selectedOrder.pit.name}</p>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                selectedOrder.orderType === "DUMP"
+                  ? "bg-orange-900 text-orange-300"
+                  : "bg-blue-900 text-blue-300"
+              }`}>
+                {selectedOrder.orderType === "DUMP" ? "DROP-OFF (Dump)" : "PICK-UP (Borrow)"}
+              </span>
+            </div>
             <p className="text-gray-400 text-sm">{selectedOrder.buyer.company ?? selectedOrder.buyer.name}</p>
             {selectedOrder.buyer.phone && (
               <a href={`tel:${selectedOrder.buyer.phone}`} className="text-amber-400 text-xs mt-1 block">

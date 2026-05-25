@@ -94,6 +94,13 @@ export default async function OrderHistoryPage() {
                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusStyles[order.status] ?? "bg-gray-100 text-gray-600"}`}>
                           {order.status}
                         </span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                          (order as { orderType?: string }).orderType === "DUMP"
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}>
+                          {(order as { orderType?: string }).orderType === "DUMP" ? "Drop-off" : "Pickup"}
+                        </span>
                         {hasUnchargedLoads && (
                           <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
                             Unpaid

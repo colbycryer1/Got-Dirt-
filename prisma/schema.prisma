@@ -61,6 +61,11 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum OrderType {
+  BORROW  // buyer is picking up material FROM the pit
+  DUMP    // buyer is dropping waste material INTO the pit
+}
+
 enum SettlementStatus {
   PENDING
   PROCESSED
@@ -306,6 +311,7 @@ model Order {
   buyer       User    @relation("BuyerOrders", fields: [buyerUserId], references: [id])
 
   status               OrderStatus @default(ACTIVE)
+  orderType            OrderType   @default(BORROW)
   estimatedLoads       Int?
   driverPaymentEnabled Boolean     @default(false)
 

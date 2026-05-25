@@ -2,15 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { Prisma, OrderType } from "@prisma/client";
 import { z } from "zod";
 import { sendNewOrderPitOwner, sendOrderConfirmationBuyer } from "@/lib/email";
 
 const createSchema = z.object({
-  projectId:     z.string().cuid(),
-  pitId:         z.string().cuid(),
+  projectId:      z.string().cuid(),
+  pitId:          z.string().cuid(),
+  orderType:      z.nativeEnum(OrderType).default(OrderType.BORROW),
   estimatedLoads: z.number().int().positive().optional(),
-  date:          z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date:           z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
 export async function GET(req: NextRequest) {
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { projectId, pitId, estimatedLoads, date } = parsed.data;
+  const { projectId, pitId, orderType, estimatedLoads, date } = parsed.data;
 
   // Verify the project belongs to this buyer
   const project = await prisma.project.findUnique({ where: { id: projectId } });
@@ -67,18 +68,32 @@ export async function POST(req: NextRequest) {
     where: { id: pitId },
     select: {
       name: true,
+      pitType: true,
       operatorProvided: true,
       equipmentProvided: true,
       equipmentNotes: true,
+      dumpRateCents: true,
+      borrowRateCents: true,
       owner: { select: { email: true, name: true } },
     },
   });
   if (!pit) return NextResponse.json({ error: "Pit not found" }, { status: 404 });
 
+  // Validate the order type against what the pit supports
+  const isDumpPit    = pit.pitType === "WASTE" || pit.pitType === "WASTE_BORROW";
+  const isBorrowPit  = pit.pitType !== "WASTE";
+  if (orderType === "DUMP" && !isDumpPit) {
+    return NextResponse.json({ error: "This pit does not accept drop-offs." }, { status: 422 });
+  }
+  if (orderType === "BORROW" && !isBorrowPit) {
+    return NextResponse.json({ error: "This pit does not offer material pickup." }, { status: 422 });
+  }
+
   const order = await prisma.order.create({
     data: {
       projectId,
       pitId,
+      orderType,
       buyerUserId:      session.user.id,
       estimatedLoads:   estimatedLoads ?? null,
       date:             new Date(date + "T00:00:00Z"),

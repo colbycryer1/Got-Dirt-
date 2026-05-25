@@ -48,8 +48,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Resolve rate for this material type
-  const rateCents = resolveRate(materialType, order.pit);
+  // Resolve rate using order type (BORROW vs DUMP) + material-specific overrides
+  const rateCents = resolveRate(materialType, order.pit, order.orderType);
   if (rateCents === null) {
     return NextResponse.json({ error: "No rate configured for this material type" }, { status: 422 });
   }
@@ -109,18 +109,21 @@ function resolveRate(
     borrowRateCents: number | null;
     topsoilRateCents: number | null;
     materialRatesCents: unknown;
-  }
+  },
+  orderType: string   // "BORROW" | "DUMP"
 ): number | null {
-  // 1. Check per-material override first
+  // 1. Per-material override (single rate regardless of order type)
   const perMaterial = (pit.materialRatesCents ?? {}) as Record<string, number>;
   if (typeof perMaterial[materialType] === "number") return perMaterial[materialType];
 
-  // 2. Topsoil area rate
+  // 2. Topsoil area has its own rate
   const mt = materialType.toLowerCase();
   if (mt.includes("topsoil") || mt.includes("top soil")) {
-    return pit.topsoilRateCents ?? pit.dumpRateCents ?? pit.borrowRateCents;
+    return pit.topsoilRateCents
+      ?? (orderType === "DUMP" ? pit.dumpRateCents : pit.borrowRateCents);
   }
 
-  // 3. Base dump rate, falling back to borrow rate
-  return pit.dumpRateCents ?? pit.borrowRateCents;
+  // 3. Use the rate that matches what the buyer is doing
+  if (orderType === "DUMP") return pit.dumpRateCents ?? pit.borrowRateCents;
+  return pit.borrowRateCents ?? pit.dumpRateCents;
 }
