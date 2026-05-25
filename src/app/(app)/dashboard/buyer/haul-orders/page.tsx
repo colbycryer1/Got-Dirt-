@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { isBuyerRole } from "@/types";
+import CompleteHaulButton from "./CompleteHaulButton";
 
 export const metadata = { title: "Haul Orders — Got Dirt?" };
 
@@ -21,23 +22,36 @@ export default async function BuyerHaulOrdersPage() {
   if (!session) redirect("/login");
   if (!isBuyerRole(session.user.role) && session.user.role !== "ADMIN") redirect("/dashboard");
 
-  const orders = await prisma.haulOrder.findMany({
-    where:   { buyerUserId: session.user.id },
-    include: {
-      driver:  {
-        include: { user: { select: { name: true, phone: true } } },
-      },
-      carrier: {
-        include: { user: { select: { name: true, phone: true } } },
-      },
-      pit:     { select: { name: true, state: true } },
-      project: { select: { name: true } },
-    },
-    orderBy: [{ status: "asc" }, { scheduledDate: "asc" }],
-  });
+  const role = session.user.role;
 
-  const active    = orders.filter((o) => ["PENDING", "CONFIRMED", "ACTIVE"].includes(o.status));
-  const completed = orders.filter((o) => ["COMPLETED", "DENIED", "CANCELLED"].includes(o.status));
+  // Buyers see orders they placed; carriers also see orders assigned to them as a carrier
+  const [placedOrders, incomingOrders] = await Promise.all([
+    prisma.haulOrder.findMany({
+      where:   { buyerUserId: session.user.id },
+      include: {
+        driver:  { include: { user: { select: { name: true, phone: true } } } },
+        carrier: { include: { user: { select: { name: true, phone: true } } } },
+        pit:     { select: { name: true, state: true } },
+        project: { select: { name: true } },
+      },
+      orderBy: [{ status: "asc" }, { scheduledDate: "asc" }],
+    }),
+    role === "CARRIER"
+      ? prisma.haulOrder.findMany({
+          where:   { carrier: { userId: session.user.id } },
+          include: {
+            buyer:   { select: { name: true, company: true, phone: true } },
+            pit:     { select: { name: true, state: true } },
+            project: { select: { name: true } },
+          },
+          orderBy: [{ status: "asc" }, { scheduledDate: "asc" }],
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const activePlaced    = placedOrders.filter((o) => ["PENDING", "CONFIRMED", "ACTIVE"].includes(o.status));
+  const completedPlaced = placedOrders.filter((o) => ["COMPLETED", "DENIED", "CANCELLED"].includes(o.status));
+  const activeIncoming  = incomingOrders.filter((o) => ["PENDING", "CONFIRMED", "ACTIVE"].includes(o.status));
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -56,7 +70,21 @@ export default async function BuyerHaulOrdersPage() {
           </Link>
         </div>
 
-        {orders.length === 0 ? (
+        {/* Carrier incoming requests */}
+        {role === "CARRIER" && activeIncoming.length > 0 && (
+          <section>
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              Incoming Requests (Carrier)
+            </h2>
+            <div className="space-y-3">
+              {activeIncoming.map((o) => (
+                <IncomingOrderRow key={o.id} order={o as IncomingOrder} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {placedOrders.length === 0 && incomingOrders.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
             <p className="text-gray-500 font-medium mb-2">No haul orders yet</p>
             <p className="text-sm text-gray-400 mb-4">Find a nearby driver or carrier on the map and schedule a haul.</p>
@@ -66,19 +94,23 @@ export default async function BuyerHaulOrdersPage() {
           </div>
         ) : (
           <>
-            {active.length > 0 && (
+            {activePlaced.length > 0 && (
               <section>
                 <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Active & Upcoming</h2>
                 <div className="space-y-3">
-                  {active.map((o) => <HaulOrderRow key={o.id} order={o} />)}
+                  {activePlaced.map((o) => (
+                    <PlacedOrderRow key={o.id} order={o as PlacedOrder} statusColors={statusColors} />
+                  ))}
                 </div>
               </section>
             )}
-            {completed.length > 0 && (
+            {completedPlaced.length > 0 && (
               <section>
                 <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Completed & Cancelled</h2>
                 <div className="space-y-3">
-                  {completed.map((o) => <HaulOrderRow key={o.id} order={o} />)}
+                  {completedPlaced.map((o) => (
+                    <PlacedOrderRow key={o.id} order={o as PlacedOrder} statusColors={statusColors} />
+                  ))}
                 </div>
               </section>
             )}
@@ -89,27 +121,45 @@ export default async function BuyerHaulOrdersPage() {
   );
 }
 
-function HaulOrderRow({ order }: {
-  order: {
-    id: string;
-    status: string;
-    scheduledDate: Date;
-    loads: number;
-    haulRateCents: number;
-    totalEstimatedCents: number;
-    notes: string | null;
-    driver:  { truckType: string | null; user: { name: string | null; phone: string | null } } | null;
-    carrier: { companyName: string | null; user: { name: string | null; phone: string | null } } | null;
-    pit:     { name: string; state: string } | null;
-    project: { name: string } | null;
-  };
-}) {
+// ── Types for row components ──────────────────────────────────────────────
+
+interface PlacedOrder {
+  id: string;
+  status: string;
+  scheduledDate: Date;
+  loads: number;
+  haulRateCents: number;
+  totalEstimatedCents: number;
+  notes: string | null;
+  driverId: string | null;
+  carrierId: string | null;
+  driver:  { truckType: string | null; user: { name: string | null; phone: string | null } } | null;
+  carrier: { companyName: string | null; user: { name: string | null; phone: string | null } } | null;
+  pit:     { name: string; state: string } | null;
+  project: { name: string } | null;
+}
+
+interface IncomingOrder {
+  id: string;
+  status: string;
+  scheduledDate: Date;
+  loads: number;
+  haulRateCents: number;
+  totalEstimatedCents: number;
+  notes: string | null;
+  buyer:   { name: string | null; company: string | null; phone: string | null };
+  pit:     { name: string; state: string } | null;
+  project: { name: string } | null;
+}
+
+function PlacedOrderRow({ order, statusColors }: { order: PlacedOrder; statusColors: Record<string, string> }) {
   const haulerName = order.carrier?.companyName
     ?? order.carrier?.user.name
     ?? order.driver?.user.name
-    ?? "Unknown";
+    ?? ((!order.driverId && !order.carrierId) ? "Open Broadcast" : "Unknown");
 
-  const haulerType = order.carrier ? "3PL" : "Driver";
+  const haulerType = order.carrier ? "3PL" : order.driver ? "Driver" : "Broadcast";
+  const canComplete = order.status === "CONFIRMED" || order.status === "ACTIVE";
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5">
@@ -126,12 +176,45 @@ function HaulOrderRow({ order }: {
           {order.pit && <p className="text-sm text-gray-500">{order.pit.name} · {order.pit.state}</p>}
           {order.project && <p className="text-xs text-gray-400">{order.project.name}</p>}
           <p className="text-xs text-gray-400 mt-1">
-            {new Date(order.scheduledDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            {new Date(order.scheduledDate).toLocaleDateString("en-US", {
+              weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+            })}
           </p>
         </div>
         <div className="text-right shrink-0">
           <p className="text-lg font-bold text-gray-900">${(order.totalEstimatedCents / 100).toFixed(2)}</p>
           <p className="text-xs text-gray-400">{order.loads} load{order.loads !== 1 ? "s" : ""} @ ${(order.haulRateCents / 100).toFixed(2)}</p>
+        </div>
+      </div>
+      {canComplete && (
+        <div className="mt-4 pt-3 border-t border-gray-100">
+          <CompleteHaulButton orderId={order.id} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IncomingOrderRow({ order }: { order: IncomingOrder }) {
+  return (
+    <div className="bg-white rounded-2xl border border-amber-200 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="font-bold text-gray-900">{order.buyer.company ?? order.buyer.name ?? "Buyer"}</p>
+          {order.pit && <p className="text-sm text-gray-500">{order.pit.name} · {order.pit.state}</p>}
+          {order.project && <p className="text-xs text-gray-400">{order.project.name}</p>}
+          <p className="text-xs text-gray-400 mt-1">
+            {new Date(order.scheduledDate).toLocaleDateString("en-US", {
+              weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+            })}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusColors[order.status] ?? "bg-gray-100 text-gray-600"}`}>
+            {order.status}
+          </span>
+          <p className="text-lg font-bold text-gray-900 mt-1">${(order.totalEstimatedCents / 100).toFixed(2)}</p>
+          <p className="text-xs text-gray-400">{order.loads} load{order.loads !== 1 ? "s" : ""}</p>
         </div>
       </div>
     </div>

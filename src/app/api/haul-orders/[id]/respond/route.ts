@@ -3,12 +3,13 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { sendHaulConfirmedToBuyer, sendHaulDeniedToBuyer } from "@/lib/email";
 
 const schema = z.object({
   action: z.enum(["CONFIRM", "DENY"]),
 });
 
-// PATCH /api/haul-orders/[id]/respond — driver or carrier accepts/denies
+// PATCH /api/haul-orders/[id]/respond — driver or carrier accepts/denies a direct request
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -26,11 +27,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     include: {
       driver:  { select: { userId: true } },
       carrier: { select: { userId: true } },
+      buyer:   { select: { email: true, name: true } },
     },
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Verify this driver/carrier owns the order
   const isDriver  = role === "DRIVER"  && order.driver?.userId  === session.user.id;
   const isCarrier = role === "CARRIER" && order.carrier?.userId === session.user.id;
   if (!isDriver && !isCarrier) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -39,14 +40,41 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: "Order is no longer pending" }, { status: 409 });
   }
 
-  // First-come-first-served expiry check
   if (order.expiresAt && order.expiresAt < new Date()) {
     return NextResponse.json({ error: "This order has expired" }, { status: 410 });
   }
 
+  const newStatus = parsed.data.action === "CONFIRM" ? "CONFIRMED" : "DENIED";
   const updated = await prisma.haulOrder.update({
     where: { id: params.id },
-    data:  { status: parsed.data.action === "CONFIRM" ? "CONFIRMED" : "DENIED" },
+    data:  { status: newStatus },
   });
+
+  // Notify buyer
+  const haulerName = session.user.name ?? null;
+  const scheduledStr = new Date(order.scheduledDate).toLocaleDateString("en-US", {
+    weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
+
+  if (order.buyer.email) {
+    if (newStatus === "CONFIRMED") {
+      sendHaulConfirmedToBuyer({
+        buyerEmail:    order.buyer.email,
+        buyerName:     order.buyer.name,
+        haulerName,
+        loads:         order.loads,
+        scheduledDate: scheduledStr,
+        orderId:       order.id,
+      }).catch(console.error);
+    } else {
+      sendHaulDeniedToBuyer({
+        buyerEmail:    order.buyer.email,
+        buyerName:     order.buyer.name,
+        haulerName,
+        scheduledDate: scheduledStr,
+      }).catch(console.error);
+    }
+  }
+
   return NextResponse.json({ order: updated });
 }

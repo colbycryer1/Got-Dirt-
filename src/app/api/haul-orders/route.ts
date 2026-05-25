@@ -5,10 +5,12 @@ import { stripe } from "@/lib/stripe";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isBuyerRole } from "@/types";
+import { sendHaulRequestToHauler, sendHaulBroadcast } from "@/lib/email";
 
 const createSchema = z.object({
-  driverId:      z.string().optional(),  // DriverProfile.id
-  carrierId:     z.string().optional(),  // CarrierProfile.id
+  driverId:      z.string().optional(),
+  carrierId:     z.string().optional(),
+  broadcast:     z.boolean().optional().default(false),
   pitId:         z.string().optional(),
   projectId:     z.string().optional(),
   scheduledDate: z.string().datetime(),
@@ -18,10 +20,10 @@ const createSchema = z.object({
   depositHoldCents:      z.number().int().min(0),
   notes:         z.string().optional(),
   expiresAt:     z.string().datetime().optional(),
-}).refine((d) => !!(d.driverId || d.carrierId), {
-  message: "Either driverId or carrierId is required",
 }).refine((d) => !(d.driverId && d.carrierId), {
   message: "Cannot assign both a driver and a carrier",
+}).refine((d) => d.broadcast || d.driverId || d.carrierId, {
+  message: "Either select a specific hauler or enable broadcast mode",
 });
 
 // GET /api/haul-orders — list for the current user (buyer, driver, or carrier)
@@ -43,7 +45,6 @@ export async function GET() {
       orderBy: { scheduledDate: "asc" },
     });
   } else if (role === "CARRIER") {
-    // CARRIER sees orders assigned to them as a carrier
     orders = await prisma.haulOrder.findMany({
       where:   { carrier: { userId: session.user.id } },
       include: {
@@ -54,7 +55,6 @@ export async function GET() {
       orderBy: { scheduledDate: "asc" },
     });
   } else if (isBuyerRole(role)) {
-    // BUYER / CONTRACTOR — see orders they placed
     orders = await prisma.haulOrder.findMany({
       where:   { buyerUserId: session.user.id },
       include: {
@@ -72,7 +72,7 @@ export async function GET() {
   return NextResponse.json({ orders });
 }
 
-// POST /api/haul-orders — buyer creates a haul order
+// POST /api/haul-orders — buyer creates a haul order (direct request or open broadcast)
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -81,10 +81,13 @@ export async function POST(req: Request) {
   const parsed = createSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  // Ensure buyer has a Stripe customer ID for the deposit hold
-  const buyer = await prisma.user.findUnique({ where: { id: session.user.id } });
+  const buyer = await prisma.user.findUnique({
+    where:  { id: session.user.id },
+    select: { name: true, company: true, email: true, stripeCustomerId: true },
+  });
+
   let customerId = buyer?.stripeCustomerId;
-  if (!customerId) {
+  if (!customerId && parsed.data.depositHoldCents > 0) {
     const customer = await stripe.customers.create({
       email: session.user.email ?? undefined,
       name:  session.user.name ?? undefined,
@@ -93,20 +96,19 @@ export async function POST(req: Request) {
     customerId = customer.id;
   }
 
-  // Create haul order first so we have an ID for the PaymentIntent metadata
+  const { broadcast, ...orderData } = parsed.data;
+
   const order = await prisma.haulOrder.create({
     data: {
       buyerUserId:  session.user.id,
-      ...parsed.data,
-      scheduledDate: new Date(parsed.data.scheduledDate),
-      expiresAt:     parsed.data.expiresAt ? new Date(parsed.data.expiresAt) : undefined,
+      ...orderData,
+      scheduledDate: new Date(orderData.scheduledDate),
+      expiresAt:     orderData.expiresAt ? new Date(orderData.expiresAt) : undefined,
     },
   });
 
-  // Create a manual-capture PaymentIntent for the deposit hold
-  // This authorizes the card but does NOT charge it yet — captured on completion
   let clientSecret: string | null = null;
-  if (parsed.data.depositHoldCents > 0) {
+  if (parsed.data.depositHoldCents > 0 && customerId) {
     const pi = await stripe.paymentIntents.create({
       amount:         parsed.data.depositHoldCents,
       currency:       "usd",
@@ -123,6 +125,76 @@ export async function POST(req: Request) {
       data:  { stripePaymentIntentId: pi.id },
     });
     clientSecret = pi.client_secret;
+  }
+
+  // Send notifications
+  const scheduledStr = new Date(parsed.data.scheduledDate).toLocaleDateString("en-US", {
+    weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
+  const buyerCompany = buyer?.company ?? buyer?.name ?? null;
+
+  if (broadcast) {
+    // Notify all live drivers and all carriers
+    const [drivers, carriers] = await Promise.all([
+      prisma.driverProfile.findMany({
+        where:  { profilePublic: true, docsVerified: true },
+        select: { user: { select: { email: true, name: true } } },
+      }),
+      prisma.carrierProfile.findMany({
+        where:  { profilePublic: true },
+        select: { user: { select: { email: true } } },
+      }),
+    ]);
+    const emails = [
+      ...drivers.map((d) => d.user.email).filter(Boolean),
+      ...carriers.map((c) => c.user.email).filter(Boolean),
+    ] as string[];
+    if (emails.length > 0) {
+      sendHaulBroadcast({
+        haulerEmails: emails,
+        buyerCompany,
+        loads:         parsed.data.loads,
+        rateCents:     parsed.data.haulRateCents,
+        scheduledDate: scheduledStr,
+        expiresAt:     parsed.data.expiresAt
+          ? new Date(parsed.data.expiresAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+          : null,
+      }).catch(console.error);
+    }
+  } else if (parsed.data.driverId) {
+    const profile = await prisma.driverProfile.findUnique({
+      where:  { id: parsed.data.driverId },
+      select: { user: { select: { email: true, name: true } } },
+    });
+    if (profile?.user.email) {
+      sendHaulRequestToHauler({
+        haulerEmail:   profile.user.email,
+        haulerName:    profile.user.name,
+        buyerCompany,
+        loads:         parsed.data.loads,
+        rateCents:     parsed.data.haulRateCents,
+        scheduledDate: scheduledStr,
+        orderId:       order.id,
+        dashboardPath: "/dashboard/driver/haul-orders",
+      }).catch(console.error);
+    }
+  } else if (parsed.data.carrierId) {
+    const profile = await prisma.carrierProfile.findUnique({
+      where:  { id: parsed.data.carrierId },
+      select: { user: { select: { email: true, name: true } } },
+    });
+    if (profile?.user.email) {
+      sendHaulRequestToHauler({
+        haulerEmail:   profile.user.email,
+        haulerName:    profile.user.name,
+        buyerCompany,
+        loads:         parsed.data.loads,
+        rateCents:     parsed.data.haulRateCents,
+        scheduledDate: scheduledStr,
+        orderId:       order.id,
+        dashboardPath: "/dashboard/buyer/haul-orders",
+      }).catch(console.error);
+    }
   }
 
   return NextResponse.json({ order, clientSecret }, { status: 201 });

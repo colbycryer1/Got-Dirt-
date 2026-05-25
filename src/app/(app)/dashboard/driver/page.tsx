@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import LocationToggle from "./LocationToggle";
+import AvailableJobsFeed from "./AvailableJobsFeed";
 
 export const metadata = { title: "Driver Dashboard — Got Dirt?" };
 
@@ -169,6 +170,15 @@ export default async function DriverDashboard() {
           <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-400">
             <p className="font-semibold text-gray-600 mb-1">No active haul orders</p>
             <p className="text-sm">Complete your profile so buyers can find and book you.</p>
+          </div>
+        )}
+
+        {/* Open broadcast jobs */}
+        {profileComplete && (
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 mb-3">Available Jobs</h2>
+            <p className="text-xs text-gray-400 mb-3">Open broadcast haul jobs — first to claim gets it.</p>
+            <AvailableJobsFeed />
           </div>
         )}
 

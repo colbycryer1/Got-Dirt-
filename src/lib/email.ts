@@ -157,3 +157,123 @@ export async function sendNewOrderPitOwner(opts: {
      <p>Log in to Got Dirt? to view the order and start logging loads.</p>`
   );
 }
+
+// ── Haul order emails ──────────────────────────────────────────────────────
+
+export async function sendHaulRequestToHauler(opts: {
+  haulerEmail: string;
+  haulerName: string | null;
+  buyerCompany: string | null;
+  loads: number;
+  rateCents: number;
+  scheduledDate: string;
+  orderId: string;
+  dashboardPath: string; // "/dashboard/driver/haul-orders" | "/dashboard/buyer/haul-orders"
+}) {
+  const { haulerEmail, haulerName, buyerCompany, loads, rateCents, scheduledDate, orderId, dashboardPath } = opts;
+  const total = ((loads * rateCents) / 100).toFixed(2);
+  await send(
+    haulerEmail,
+    `Got Dirt? — New haul request from ${buyerCompany ?? "a buyer"}`,
+    `<p>Hi ${haulerName ?? "there"},</p>
+     <p>You have a new haul request waiting for your response.</p>
+     <ul>
+       <li>From: <strong>${buyerCompany ?? "Unknown buyer"}</strong></li>
+       <li>Loads: <strong>${loads}</strong></li>
+       <li>Rate: <strong>$${(rateCents / 100).toFixed(2)}/load</strong></li>
+       <li>Estimated total: <strong>$${total}</strong></li>
+       <li>Scheduled: <strong>${scheduledDate}</strong></li>
+     </ul>
+     <p><a href="${process.env.NEXT_PUBLIC_APP_URL}${dashboardPath}">Confirm or Deny →</a></p>
+     <p>This request may expire — respond promptly.</p>`
+  );
+}
+
+export async function sendHaulBroadcast(opts: {
+  haulerEmails: string[];
+  buyerCompany: string | null;
+  loads: number;
+  rateCents: number;
+  scheduledDate: string;
+  expiresAt: string | null;
+}) {
+  const { haulerEmails, buyerCompany, loads, rateCents, scheduledDate, expiresAt } = opts;
+  const total = ((loads * rateCents) / 100).toFixed(2);
+  const subject = `Got Dirt? — Open haul job from ${buyerCompany ?? "a buyer"} (first-come-first-served)`;
+  const html = `<p>A haul job is available — first to claim gets it.</p>
+     <ul>
+       <li>From: <strong>${buyerCompany ?? "Unknown buyer"}</strong></li>
+       <li>Loads: <strong>${loads}</strong></li>
+       <li>Rate: <strong>$${(rateCents / 100).toFixed(2)}/load</strong></li>
+       <li>Estimated total: <strong>$${total}</strong></li>
+       <li>Scheduled: <strong>${scheduledDate}</strong></li>
+       ${expiresAt ? `<li>Expires: <strong>${expiresAt}</strong></li>` : ""}
+     </ul>
+     <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/driver/haul-orders">Claim this job →</a></p>`;
+  await Promise.all(haulerEmails.map((email) => send(email, subject, html)));
+}
+
+export async function sendHaulConfirmedToBuyer(opts: {
+  buyerEmail: string;
+  buyerName: string | null;
+  haulerName: string | null;
+  loads: number;
+  scheduledDate: string;
+  orderId: string;
+}) {
+  const { buyerEmail, buyerName, haulerName, loads, scheduledDate, orderId } = opts;
+  await send(
+    buyerEmail,
+    `Got Dirt? — Haul confirmed by ${haulerName ?? "your hauler"}`,
+    `<p>Hi ${buyerName ?? "there"},</p>
+     <p>Your haul request has been <strong>confirmed</strong>.</p>
+     <ul>
+       <li>Hauler: <strong>${haulerName ?? "—"}</strong></li>
+       <li>Loads: <strong>${loads}</strong></li>
+       <li>Scheduled: <strong>${scheduledDate}</strong></li>
+       <li>Order ID: <code>${orderId}</code></li>
+     </ul>
+     <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/buyer/haul-orders">View Haul Orders →</a></p>`
+  );
+}
+
+export async function sendHaulDeniedToBuyer(opts: {
+  buyerEmail: string;
+  buyerName: string | null;
+  haulerName: string | null;
+  scheduledDate: string;
+}) {
+  const { buyerEmail, buyerName, haulerName, scheduledDate } = opts;
+  await send(
+    buyerEmail,
+    `Got Dirt? — Haul request declined`,
+    `<p>Hi ${buyerName ?? "there"},</p>
+     <p>Unfortunately, <strong>${haulerName ?? "the hauler"}</strong> has declined your haul request scheduled for <strong>${scheduledDate}</strong>.</p>
+     <p>You can send a new request to another driver or carrier from the map or your haul orders page.</p>
+     <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/buyer/haul-orders">View Haul Orders →</a></p>`
+  );
+}
+
+export async function sendHaulClaimedToBuyer(opts: {
+  buyerEmail: string;
+  buyerName: string | null;
+  haulerName: string | null;
+  loads: number;
+  scheduledDate: string;
+  orderId: string;
+}) {
+  const { buyerEmail, buyerName, haulerName, loads, scheduledDate, orderId } = opts;
+  await send(
+    buyerEmail,
+    `Got Dirt? — Your broadcast haul job was claimed`,
+    `<p>Hi ${buyerName ?? "there"},</p>
+     <p>Your open haul job has been claimed and is now confirmed.</p>
+     <ul>
+       <li>Hauler: <strong>${haulerName ?? "—"}</strong></li>
+       <li>Loads: <strong>${loads}</strong></li>
+       <li>Scheduled: <strong>${scheduledDate}</strong></li>
+       <li>Order ID: <code>${orderId}</code></li>
+     </ul>
+     <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/buyer/haul-orders">View Haul Orders →</a></p>`
+  );
+}
