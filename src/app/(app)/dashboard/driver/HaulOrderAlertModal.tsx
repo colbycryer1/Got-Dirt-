@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 interface PendingOrder {
   id: string;
+  isBroadcast: boolean;
   loads: number;
   haulRateCents: number;
   totalEstimatedCents: number;
@@ -16,8 +17,8 @@ interface PendingOrder {
   project: { name: string } | null;
 }
 
-const POLL_MS      = 30_000;
-const SESSION_KEY  = "gd_seen_haul_orders";
+const POLL_MS     = 30_000;
+const SESSION_KEY = "gd_seen_haul_orders";
 
 export default function HaulOrderAlertModal() {
   const router = useRouter();
@@ -34,7 +35,7 @@ export default function HaulOrderAlertModal() {
 
     async function poll() {
       try {
-        const res = await fetch("/api/driver/pending-orders", { cache: "no-store" });
+        const res = await fetch("/api/pending-haul-orders", { cache: "no-store" });
         if (!res.ok) return;
         const { orders } = (await res.json()) as { orders: PendingOrder[] };
         const fresh = orders.filter((o) => !seenRef.current.has(o.id));
@@ -60,6 +61,25 @@ export default function HaulOrderAlertModal() {
     setQueue((prev) => prev.slice(1));
     setError("");
     setResponding(false);
+  }
+
+  async function claim() {
+    setResponding(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/haul-orders/${current.id}/claim`, {
+        method: "PATCH",
+      });
+      if (!res.ok) {
+        const d = await res.json() as { error?: string };
+        throw new Error(d.error ?? "Failed to claim");
+      }
+      dismiss();
+      router.refresh();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+      setResponding(false);
+    }
   }
 
   async function respond(action: "CONFIRM" | "DENY") {
@@ -93,30 +113,36 @@ export default function HaulOrderAlertModal() {
 
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
-          <div>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
-              </span>
-              <h2 className="text-lg font-bold text-gray-900">New Haul Request</h2>
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
             </span>
-            {queue.length > 1 && (
-              <p className="text-xs text-gray-400 mt-0.5 ml-4">{queue.length} requests waiting</p>
-            )}
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 leading-none">
+                {current.isBroadcast ? "Open Broadcast Job" : "New Haul Request"}
+              </h2>
+              {current.isBroadcast && (
+                <p className="text-xs text-amber-600 mt-0.5">First to claim gets the job</p>
+              )}
+            </div>
           </div>
-          <button
-            onClick={dismiss}
-            aria-label="Dismiss"
-            className="text-gray-400 hover:text-gray-600 text-3xl leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-2">
+            {queue.length > 1 && (
+              <span className="text-xs text-gray-400">{queue.length} waiting</span>
+            )}
+            <button
+              onClick={dismiss}
+              aria-label="Dismiss"
+              className="text-gray-400 hover:text-gray-600 text-3xl leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         {/* Body */}
         <div className="p-5 space-y-4">
-
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-0.5">Requested By</p>
@@ -125,18 +151,13 @@ export default function HaulOrderAlertModal() {
                 <p className="text-sm text-gray-500">{current.buyer.phone}</p>
               )}
             </div>
-
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-0.5">Scheduled</p>
               <p className="font-medium text-gray-800 text-sm">
-                {new Date(current.scheduledDate).toLocaleDateString("en-US", {
-                  weekday: "short", month: "short", day: "numeric",
-                })}
+                {new Date(current.scheduledDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
               </p>
               <p className="text-sm text-gray-500">
-                {new Date(current.scheduledDate).toLocaleTimeString("en-US", {
-                  hour: "numeric", minute: "2-digit",
-                })}
+                {new Date(current.scheduledDate).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
               </p>
             </div>
           </div>
@@ -161,14 +182,10 @@ export default function HaulOrderAlertModal() {
             </div>
           )}
 
-          {/* Estimated payout — highlighted */}
+          {/* Estimated payout */}
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-            <p className="text-xs text-amber-600 uppercase tracking-wide font-semibold mb-1">
-              Estimated Payout
-            </p>
-            <p className="text-3xl font-black text-amber-800">
-              ${(estPayout / 100).toFixed(2)}
-            </p>
+            <p className="text-xs text-amber-600 uppercase tracking-wide font-semibold mb-1">Estimated Payout</p>
+            <p className="text-3xl font-black text-amber-800">${(estPayout / 100).toFixed(2)}</p>
             <p className="text-sm text-amber-600 mt-0.5">
               {current.loads} load{current.loads !== 1 ? "s" : ""} &times; ${(current.haulRateCents / 100).toFixed(2)}/load
             </p>
@@ -179,20 +196,34 @@ export default function HaulOrderAlertModal() {
 
         {/* Actions */}
         <div className="p-5 pt-0 flex gap-3">
-          <button
-            onClick={() => respond("CONFIRM")}
-            disabled={responding}
-            className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-colors"
-          >
-            {responding ? "…" : "Accept"}
-          </button>
-          <button
-            onClick={() => respond("DENY")}
-            disabled={responding}
-            className="flex-1 bg-white border-2 border-gray-200 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 disabled:opacity-50 transition-colors"
-          >
-            Deny
-          </button>
+          {current.isBroadcast ? (
+            // Broadcast: claim or dismiss — no Deny
+            <button
+              onClick={claim}
+              disabled={responding}
+              className="flex-1 bg-amber-500 text-white py-3 rounded-xl font-bold hover:bg-amber-600 disabled:opacity-50 transition-colors"
+            >
+              {responding ? "Claiming…" : "Claim Job"}
+            </button>
+          ) : (
+            // Direct request: Accept or Deny
+            <>
+              <button
+                onClick={() => respond("CONFIRM")}
+                disabled={responding}
+                className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {responding ? "…" : "Accept"}
+              </button>
+              <button
+                onClick={() => respond("DENY")}
+                disabled={responding}
+                className="flex-1 bg-white border-2 border-gray-200 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                Deny
+              </button>
+            </>
+          )}
         </div>
 
       </div>
