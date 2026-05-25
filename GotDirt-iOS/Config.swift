@@ -5,5 +5,5 @@ import Foundation
 
 enum Config {
     /// Your Vercel deployment URL — no trailing slash.
-    static let baseURL = "https://your-app.vercel.app"
+    static let baseURL = "https://gotdirt.us"
 }
