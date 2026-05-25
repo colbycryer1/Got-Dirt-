@@ -24,7 +24,9 @@ export default function LoginPage() {
     });
 
     setLoading(false);
-    if (result?.error) {
+    if (result?.error === "OAuthAccountOnly") {
+      setError("This account uses Google sign-in. Click \"Continue with Google\" above.");
+    } else if (result?.error) {
       setError("Invalid email or password");
     } else {
       router.push("/dashboard");

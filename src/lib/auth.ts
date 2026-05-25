@@ -10,13 +10,13 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientId:     process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
     CredentialsProvider({
       name: "credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
+        email:    { label: "Email",    type: "email" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
@@ -26,20 +26,22 @@ export const authOptions: NextAuthOptions = {
           where: { email: credentials.email },
         });
 
-        if (!user?.hashedPassword) return null;
+        if (!user) return null;
 
-        const valid = await bcrypt.compare(
-          credentials.password,
-          user.hashedPassword
-        );
+        // Account exists but was created via Google OAuth (no password set)
+        if (!user.hashedPassword) {
+          throw new Error("OAuthAccountOnly");
+        }
+
+        const valid = await bcrypt.compare(credentials.password, user.hashedPassword);
         if (!valid) return null;
 
         return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-          role: user.role,
+          id:              user.id,
+          email:           user.email,
+          name:            user.name,
+          image:           user.image,
+          role:            user.role,
           stripeAccountId: user.stripeAccountId ?? undefined,
           stripeOnboarded: user.stripeOnboarded,
         };
@@ -49,20 +51,29 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   callbacks: {
     async jwt({ token, user, trigger }) {
+      // Always do a DB lookup when user is present (covers both credentials and OAuth sign-ins)
+      // This guarantees the role and stripe fields are fresh regardless of provider
       if (user) {
         token.id = user.id;
-        token.role = (user as { role: UserRole }).role;
-        token.stripeAccountId = (user as { stripeAccountId?: string }).stripeAccountId;
-        token.stripeOnboarded = (user as { stripeOnboarded: boolean }).stripeOnboarded;
-      }
-
-      if (trigger === "update") {
         const dbUser = await prisma.user.findUnique({
-          where: { id: token.id as string },
+          where:  { id: user.id },
           select: { role: true, stripeAccountId: true, stripeOnboarded: true },
         });
         if (dbUser) {
-          token.role = dbUser.role;
+          token.role            = dbUser.role;
+          token.stripeAccountId = dbUser.stripeAccountId ?? undefined;
+          token.stripeOnboarded = dbUser.stripeOnboarded;
+        }
+      }
+
+      // Also refresh when the session is explicitly updated (e.g. after onboarding role selection)
+      if (trigger === "update") {
+        const dbUser = await prisma.user.findUnique({
+          where:  { id: token.id as string },
+          select: { role: true, stripeAccountId: true, stripeOnboarded: true },
+        });
+        if (dbUser) {
+          token.role            = dbUser.role;
           token.stripeAccountId = dbUser.stripeAccountId ?? undefined;
           token.stripeOnboarded = dbUser.stripeOnboarded;
         }
@@ -72,8 +83,8 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as UserRole;
+        session.user.id              = token.id as string;
+        session.user.role            = token.role as UserRole;
         session.user.stripeAccountId = token.stripeAccountId as string | undefined;
         session.user.stripeOnboarded = token.stripeOnboarded as boolean;
       }
