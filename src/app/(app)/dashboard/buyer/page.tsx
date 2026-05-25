@@ -107,7 +107,7 @@ export default async function BuyerDashboardPage() {
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: "Projects",      value: projects.length,                  href: "/dashboard/buyer/projects/new" },
+            { label: "Projects",      value: projects.length,                  href: "/dashboard/buyer/projects" },
             { label: "Active Orders", value: activeOrders.length,              href: "/dashboard/buyer/orders" },
             { label: "Total Loads",   value: totalLoads,                       href: "/dashboard/buyer/orders" },
             { label: "Total Spent",   value: `$${(spentCents / 100).toFixed(2)}`, href: "/dashboard/buyer/invoices" },
@@ -123,6 +123,7 @@ export default async function BuyerDashboardPage() {
         {/* Quick links */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
+            { label: "Projects",        icon: "📁", href: "/dashboard/buyer/projects" },
             { label: "Order History",   icon: "📋", href: "/dashboard/buyer/orders" },
             { label: "Invoices",        icon: "🧾", href: "/dashboard/buyer/invoices" },
             { label: "Saved Pits",      icon: "📌", href: "/dashboard/buyer/saved-pits" },
