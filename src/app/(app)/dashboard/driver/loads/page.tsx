@@ -197,17 +197,17 @@ export default async function DriverLoadsPage() {
           </div>
         )}
 
-        {/* Full haul history */}
+        {/* Full haul history — completed orders only */}
         <div>
           <h2 className="text-lg font-bold text-gray-900 mb-3">Haul History</h2>
-          {haulOrders.length === 0 ? (
+          {completed.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center text-gray-400">
-              <p className="font-semibold text-gray-600 mb-1">No haul jobs yet</p>
+              <p className="font-semibold text-gray-600 mb-1">No completed haul jobs yet</p>
               <p className="text-sm">Completed haul orders will appear here with load counts and earnings.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {haulOrders.map((o) => (
+              {completed.map((o) => (
                 <div key={o.id} className="bg-white rounded-2xl border border-gray-200 p-5 flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">

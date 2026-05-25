@@ -27,7 +27,7 @@ export default async function DriverDashboard() {
       where:   { driver: { userId: session.user.id } },
       include: {
         buyer:   { select: { name: true, company: true, phone: true } },
-        pit:     { select: { name: true, state: true } },
+        pit:     { select: { name: true, state: true, latitude: true, longitude: true, geofenceRadiusMeters: true } },
         project: { select: { name: true } },
       },
       orderBy: { scheduledDate: "asc" },
@@ -76,12 +76,15 @@ export default async function DriverDashboard() {
     : [];
   const totalDriverLogCount = driverLogCounts.reduce((s, r) => s + r._count.id, 0);
 
-  // Shape for GpsLoadLogButton
+  // Shape for GpsLoadLogButton — includes pit coords for client-side geofence check
   const activeOrdersForButton = ordersWithPit.map((o) => ({
-    id:       o.id,
-    pitName:  o.pit?.name ?? "Pit",
-    pitState: o.pit?.state ?? "",
-    loads:    o.loads,
+    id:             o.id,
+    pitName:        o.pit?.name ?? "Pit",
+    pitState:       o.pit?.state ?? "",
+    loads:          o.loads,
+    pitLat:         o.pit?.latitude ?? null,
+    pitLng:         o.pit?.longitude ?? null,
+    geofenceMeters: o.pit?.geofenceRadiusMeters ?? 200,
   }));
 
   return (

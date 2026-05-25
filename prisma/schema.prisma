@@ -789,8 +789,14 @@ model HaulOrder {
   operatorTruckType      String?
   operatorTruckRateCents Int?
 
-  amendments     HaulOrderAmendment[]
-  driverLoadLogs DriverLoadLog[]
+  // Pit owner starts a load-log session to unlock the driver's tap button
+  pitSessionActive      Boolean   @default(false)
+  pitSessionStartedAt   DateTime?
+  pitSessionStartedBy   String?   // pit owner userId
+
+  amendments       HaulOrderAmendment[]
+  driverLoadLogs   DriverLoadLog[]
+  pitOwnerLoadLogs PitOwnerLoadLog[]
 
   @@index([buyerUserId])
   @@index([driverId])
@@ -848,4 +854,15 @@ model DriverLoadLog {
 
   @@index([haulOrderId])
   @@index([driverUserId])
+}
+
+model PitOwnerLoadLog {
+  id             String    @id @default(cuid())
+  haulOrderId    String
+  haulOrder      HaulOrder @relation(fields: [haulOrderId], references: [id])
+  pitOwnerUserId String
+  loggedAt       DateTime  @default(now())
+
+  @@index([haulOrderId])
+  @@index([pitOwnerUserId])
 }
