@@ -41,27 +41,31 @@ export default async function PitOwnerPits() {
           </div>
         ) : (
           <div className="space-y-4">
-            {pits.map((pit) => {
-              const ratePerLoad = pit.dumpRateCents ?? pit.borrowRateCents;
-              return (
-                <div key={pit.id} className="bg-white rounded-2xl border border-gray-200 p-5">
+            {pits.map((pit) => (
+              <div key={pit.id} className="bg-white rounded-2xl border border-gray-200 p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <h2 className="font-semibold text-gray-900 text-lg">{pit.name}</h2>
                       <p className="text-sm text-gray-500">{pitTypeLabel(pit.pitType)} · {pit.state}</p>
-                      <div className="flex flex-wrap gap-3 mt-2 text-sm">
-                        {ratePerLoad ? (
-                          <span className="font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg">
-                            {centsToDisplay(ratePerLoad)}/load
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {pit.borrowRateCents && (
+                          <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-lg">
+                            Borrow&nbsp;&nbsp;{centsToDisplay(pit.borrowRateCents)}/load
                           </span>
-                        ) : (
-                          <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded-lg text-xs font-semibold">
-                            ⚠ No rate set — loads cannot be logged
+                        )}
+                        {pit.dumpRateCents && (
+                          <span className="text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-2 py-1 rounded-lg">
+                            Dump&nbsp;&nbsp;{centsToDisplay(pit.dumpRateCents)}/load
                           </span>
                         )}
                         {pit.hasTopsoil && pit.topsoilRateCents && (
-                          <span className="text-stone-600 bg-stone-50 px-2 py-0.5 rounded-lg">
-                            Topsoil: {centsToDisplay(pit.topsoilRateCents)}/load
+                          <span className="text-xs font-semibold text-stone-600 bg-stone-50 border border-stone-200 px-2 py-1 rounded-lg">
+                            Topsoil&nbsp;&nbsp;{centsToDisplay(pit.topsoilRateCents)}/load
+                          </span>
+                        )}
+                        {!pit.borrowRateCents && !pit.dumpRateCents && (
+                          <span className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-1 rounded-lg">
+                            ⚠ No rates set — loads cannot be logged
                           </span>
                         )}
                       </div>
@@ -76,9 +80,8 @@ export default async function PitOwnerPits() {
                       </Link>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>
