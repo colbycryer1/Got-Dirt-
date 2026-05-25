@@ -106,8 +106,10 @@ function resolveRate(
   pit: { dumpRateCents: number | null; borrowRateCents: number | null; topsoilRateCents: number | null }
 ): number | null {
   const mt = materialType.toLowerCase();
-  if (mt.includes("topsoil") || mt.includes("top soil")) return pit.topsoilRateCents ?? pit.dumpRateCents;
-  if (mt.includes("borrow")) return pit.borrowRateCents ?? pit.dumpRateCents;
-  // All other materials: use dump rate as default
-  return pit.dumpRateCents;
+  if (mt.includes("topsoil") || mt.includes("top soil")) {
+    return pit.topsoilRateCents ?? pit.dumpRateCents ?? pit.borrowRateCents;
+  }
+  // Use dump rate (per-load haul rate) with borrow rate as fallback.
+  // Borrow pits configured via PitForm only set borrowRateCents, so we must fall through.
+  return pit.dumpRateCents ?? pit.borrowRateCents;
 }

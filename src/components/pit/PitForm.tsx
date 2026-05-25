@@ -192,20 +192,19 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
 
       {/* Rates */}
       <div className="border-t border-gray-100 pt-6">
-        <h3 className="text-sm font-semibold text-gray-800 mb-4">Rates (per load)</h3>
+        <h3 className="text-sm font-semibold text-gray-800 mb-1">Rates (per load)</h3>
+        <p className="text-xs text-gray-400 mb-4">All loads are charged at the Rate per Load regardless of material. Add topsoil rate only if this pit has a separate topsoil area priced differently.</p>
         <div className="grid sm:grid-cols-3 gap-4">
-          {(form.pitType === "WASTE" || form.pitType === "WASTE_BORROW") && (
-            <div>
-              <label className={labelClass}>Dump Rate ($)</label>
-              <input type="number" step="0.01" min="0" value={form.dumpRateDollars} onChange={(e) => set("dumpRateDollars", e.target.value)} className={inputClass} placeholder="5.00" />
-            </div>
-          )}
-          {(form.pitType === "BORROW" || form.pitType === "WASTE_BORROW" || form.pitType === "PRIVATE_BORROW_PIT" || form.pitType === "QUARRY") && (
-            <div>
-              <label className={labelClass}>Borrow Rate ($)</label>
-              <input type="number" step="0.01" min="0" value={form.borrowRateDollars} onChange={(e) => set("borrowRateDollars", e.target.value)} className={inputClass} placeholder="8.00" />
-            </div>
-          )}
+          <div>
+            <label className={labelClass}>Rate per Load ($) *</label>
+            <input
+              type="number" step="0.01" min="0" required
+              value={form.dumpRateDollars}
+              onChange={(e) => set("dumpRateDollars", e.target.value)}
+              className={inputClass}
+              placeholder="60.00"
+            />
+          </div>
           <div>
             <label className={labelClass}>Has Topsoil Area?</label>
             <div className="flex items-center gap-3 mt-2">
