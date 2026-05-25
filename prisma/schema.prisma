@@ -479,11 +479,12 @@ model Invoice {
 }
 
 model PlatformSettings {
-  id              String   @id @default("singleton")
-  feePercent      Float    @default(8.0)   // pit transaction fee %
-  haulFeePercent  Float    @default(10.0)  // driver/carrier haul order fee %
-  updatedAt       DateTime @updatedAt
-  updatedBy       String?
+  id                 String   @id @default("singleton")
+  feePercent         Float    @default(8.0)   // pit transaction fee %
+  haulFeePercent     Float    @default(10.0)  // driver/carrier haul order fee %
+  earlyEditFeeCents  Int      @default(1000)  // fee for load edits within 24h
+  updatedAt          DateTime @updatedAt
+  updatedBy          String?
 }
 
 model PitOwnerCompliance {
@@ -773,9 +774,46 @@ model HaulOrder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  amendments HaulOrderAmendment[]
+
   @@index([buyerUserId])
   @@index([driverId])
   @@index([carrierId])
   @@index([status])
   @@index([scheduledDate])
+}
+
+model HaulOrderAmendment {
+  id          String    @id @default(cuid())
+  haulOrderId String
+  haulOrder   HaulOrder @relation(fields: [haulOrderId], references: [id])
+
+  requestedByUserId String  // buyer's userId
+
+  originalLoads  Int
+  requestedLoads Int
+
+  reason String? @db.Text
+
+  // PENDING | APPROVED | DENIED | WITHDRAWN
+  status String @default("PENDING")
+
+  // Hauler response (driver or carrier — whoever is on the order)
+  haulerApproved    Boolean?
+  haulerRespondedAt DateTime?
+  haulerNotes       String?   @db.Text
+
+  // Pit owner response (null if pit has no owner or order has no pit)
+  pitOwnerApproved    Boolean?
+  pitOwnerRespondedAt DateTime?
+  pitOwnerNotes       String?   @db.Text
+
+  processingFeeCents Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([haulOrderId])
+  @@index([status])
+  @@index([requestedByUserId])
 }
