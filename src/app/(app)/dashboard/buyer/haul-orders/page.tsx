@@ -128,6 +128,7 @@ interface PlacedOrder {
   status: string;
   scheduledDate: Date;
   loads: number;
+  actualLoads: number | null;
   haulRateCents: number;
   totalEstimatedCents: number;
   notes: string | null;
@@ -182,13 +183,35 @@ function PlacedOrderRow({ order, statusColors }: { order: PlacedOrder; statusCol
           </p>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-lg font-bold text-gray-900">${(order.totalEstimatedCents / 100).toFixed(2)}</p>
-          <p className="text-xs text-gray-400">{order.loads} load{order.loads !== 1 ? "s" : ""} @ ${(order.haulRateCents / 100).toFixed(2)}</p>
+          {order.status === "COMPLETED" && order.actualLoads != null ? (
+            <>
+              <p className="text-lg font-bold text-gray-900">
+                ${((order.actualLoads * order.haulRateCents) / 100).toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-400">
+                {order.actualLoads} actual load{order.actualLoads !== 1 ? "s" : ""} @ ${(order.haulRateCents / 100).toFixed(2)}
+              </p>
+              {order.actualLoads !== order.loads && (
+                <p className="text-xs text-gray-400 line-through">
+                  Est. {order.loads} loads (${(order.totalEstimatedCents / 100).toFixed(2)})
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-lg font-bold text-gray-900">${(order.totalEstimatedCents / 100).toFixed(2)}</p>
+              <p className="text-xs text-gray-400">{order.loads} load{order.loads !== 1 ? "s" : ""} @ ${(order.haulRateCents / 100).toFixed(2)}</p>
+            </>
+          )}
         </div>
       </div>
       {canComplete && (
         <div className="mt-4 pt-3 border-t border-gray-100">
-          <CompleteHaulButton orderId={order.id} />
+          <CompleteHaulButton
+            orderId={order.id}
+            estimatedLoads={order.loads}
+            haulRateCents={order.haulRateCents}
+          />
         </div>
       )}
     </div>

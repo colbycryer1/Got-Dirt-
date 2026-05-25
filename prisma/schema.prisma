@@ -752,12 +752,13 @@ model HaulOrder {
   project   Project? @relation(fields: [projectId], references: [id])
 
   scheduledDate       DateTime
-  loads               Int
+  loads               Int  // estimated loads at order placement
+  actualLoads         Int? // actual loads on completion (null until completed)
   haulRateCents       Int  // rate locked at order placement
   totalEstimatedCents Int
   depositHoldCents    Int  // partial card hold amount
 
-  // Platform fee snapshot
+  // Platform fee snapshot — recalculated on completion using actualLoads
   platformFeePercent Float @default(0)
   platformFeeCents   Int   @default(0)  // Got Dirt? revenue on this order
   haulerPayoutCents  Int   @default(0)  // what the driver/carrier receives
