@@ -38,7 +38,7 @@ export default function NewProjectPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center gap-4">
-        <Link href="/dashboard/buyer" className="text-amber-600 text-sm font-medium">← Dashboard</Link>
+        <Link href="/dashboard/buyer/projects" className="text-amber-600 text-sm font-medium">← Projects</Link>
         <span className="font-black text-black text-lg">Got Dirt?</span>
       </nav>
 

@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import IntegrationCard from "./IntegrationCard";
 
 export default async function BuyerSettingsPage() {
@@ -31,7 +32,12 @@ export default async function BuyerSettingsPage() {
   const acc     = connections.find((c) => c.platform === "ACC");
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-8">
+    <div className="min-h-screen bg-gray-50">
+      <nav className="bg-white border-b px-6 py-4 flex items-center gap-4">
+        <Link href="/dashboard/buyer" className="text-amber-600 hover:text-amber-700 text-sm font-medium">← Dashboard</Link>
+        <span className="font-black text-black text-lg">Got Dirt?</span>
+      </nav>
+      <div className="max-w-3xl mx-auto p-6 space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Integrations &amp; Settings</h1>
         <p className="text-sm text-gray-500 mt-1">
@@ -107,6 +113,8 @@ export default async function BuyerSettingsPage() {
           />
         </div>
       )}
+    </div>
+      </div>
     </div>
   );
 }
