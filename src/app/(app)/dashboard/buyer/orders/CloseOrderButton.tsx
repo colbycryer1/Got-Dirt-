@@ -3,35 +3,78 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+interface ChargeResult {
+  status: string;
+  message?: string;
+  loadCount?: number;
+  grossCents?: number;
+}
+
 export default function CloseOrderButton({ orderId }: { orderId: string }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState("");
+  const [result,     setResult]     = useState<ChargeResult | null>(null);
 
   async function closeOut() {
     setLoading(true);
     setError("");
     const res = await fetch(`/api/orders/${orderId}`, {
-      method: "PATCH",
+      method:  "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "COMPLETED" }),
+      body:    JSON.stringify({ status: "COMPLETED" }),
     });
+    const data = await res.json();
     if (res.ok) {
+      setResult(data.charge);
+      setConfirming(false);
       router.refresh();
     } else {
-      const d = await res.json();
-      setError(d.error ?? "Failed to close order");
+      setError(data.error ?? "Failed to close order");
       setLoading(false);
       setConfirming(false);
     }
+  }
+
+  // After close — show charge outcome
+  if (result) {
+    if (result.status === "charged") {
+      return (
+        <span className="text-xs text-green-600 font-semibold">
+          ✓ Closed &amp; charged ${((result.grossCents ?? 0) / 100).toFixed(2)} for {result.loadCount} load{result.loadCount !== 1 ? "s" : ""}
+        </span>
+      );
+    }
+    if (result.status === "no_payment_method") {
+      return (
+        <span className="text-xs text-amber-700 font-semibold">
+          ⚠ Closed — <a href="/dashboard/buyer/billing" className="underline">Add a card</a> to pay for uncharged loads
+        </span>
+      );
+    }
+    if (result.status === "zero_amount") {
+      return (
+        <span className="text-xs text-red-600 font-semibold">
+          Closed — {result.message}
+        </span>
+      );
+    }
+    if (result.status === "charge_failed") {
+      return (
+        <span className="text-xs text-red-600 font-semibold">
+          Closed but charge failed: {result.message}
+        </span>
+      );
+    }
+    return <span className="text-xs text-gray-500">Closed</span>;
   }
 
   if (confirming) {
     return (
       <div className="flex items-center gap-2 flex-wrap">
         {error && <span className="text-xs text-red-600">{error}</span>}
-        <span className="text-xs text-gray-500">Mark as completed?</span>
+        <span className="text-xs text-gray-500">Close &amp; charge for any remaining loads?</span>
         <button
           onClick={closeOut}
           disabled={loading}

@@ -32,7 +32,9 @@ export default function ChargeOrderButton({ orderId, loadCount }: { orderId: str
   if (confirming) {
     return (
       <div className="flex items-center gap-2 flex-wrap">
-        {error && <span className="text-xs text-red-600">{error}</span>}
+        {error && (
+          <span className="text-xs text-red-600 font-medium w-full">{error}</span>
+        )}
         <span className="text-xs text-gray-500">Charge card for {loadCount} load{loadCount !== 1 ? "s" : ""}?</span>
         <button
           onClick={charge}
