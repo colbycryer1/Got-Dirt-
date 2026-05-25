@@ -21,7 +21,7 @@ export default async function PitOwnerDashboard() {
   });
   const pitIds = pits.map((p) => p.id);
 
-  const [todayLoadEvents, recentSettlements] = await Promise.all([
+  const [todayLoadEvents, recentSettlements, activeOrders, activeHaulOrders] = await Promise.all([
     pitIds.length > 0
       ? prisma.loadEvent.findMany({
           where: { pitId: { in: pitIds }, verified: true, disputed: false, createdAt: { gte: today } },
@@ -34,6 +34,37 @@ export default async function PitOwnerDashboard() {
           include: { order: { select: { pit: { select: { name: true } } } } },
           orderBy: { date: "desc" },
           take: 5,
+        })
+      : Promise.resolve([]),
+    // Active pit material Orders
+    pitIds.length > 0
+      ? prisma.order.findMany({
+          where: { pitId: { in: pitIds }, status: "ACTIVE" },
+          include: {
+            pit:     { select: { name: true } },
+            buyer:   { select: { name: true, company: true } },
+            project: { select: { name: true } },
+            _count:  { select: { loadEvents: true } },
+          },
+          orderBy: { date: "desc" },
+          take: 8,
+        })
+      : Promise.resolve([]),
+    // Active haul orders at their pits
+    pitIds.length > 0
+      ? prisma.haulOrder.findMany({
+          where: {
+            pitId:  { in: pitIds },
+            status: { in: ["PENDING", "CONFIRMED", "ACTIVE"] },
+          },
+          include: {
+            pit:     { select: { name: true } },
+            buyer:   { select: { name: true, company: true } },
+            driver:  { include: { user: { select: { name: true } } } },
+            carrier: { select: { companyName: true, user: { select: { name: true } } } },
+          },
+          orderBy: { scheduledDate: "asc" },
+          take: 8,
         })
       : Promise.resolve([]),
   ]);
@@ -101,6 +132,63 @@ export default async function PitOwnerDashboard() {
             </Link>
           ))}
         </div>
+
+        {/* Active Orders at your pits */}
+        {(activeOrders.length > 0 || activeHaulOrders.length > 0) && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-gray-900">Active Orders</h2>
+              <Link href="/dashboard/pit-owner/active-orders" className="text-amber-600 text-sm font-medium">View all →</Link>
+            </div>
+            <div className="space-y-2">
+              {activeOrders.map((o) => (
+                <div key={o.id} className="bg-white rounded-2xl border border-green-200 p-4 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">Pit Order</span>
+                      <p className="font-semibold text-gray-900 text-sm">{o.buyer.company ?? o.buyer.name ?? "Buyer"}</p>
+                    </div>
+                    <p className="text-xs text-gray-500">{o.pit.name} · {o.project.name}</p>
+                    <p className="text-xs text-gray-400">{new Date(o.date).toLocaleDateString()}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-gray-900">{o._count.loadEvents} loads</p>
+                    <span className="text-xs text-green-600 font-semibold">ACTIVE</span>
+                  </div>
+                </div>
+              ))}
+              {activeHaulOrders.map((o) => {
+                const haulerName = o.carrier?.companyName ?? o.carrier?.user.name
+                  ?? o.driver?.user.name ?? "Open Broadcast";
+                const statusColors: Record<string, string> = {
+                  PENDING:   "bg-amber-100 text-amber-700",
+                  CONFIRMED: "bg-green-100 text-green-700",
+                  ACTIVE:    "bg-blue-100 text-blue-700",
+                };
+                return (
+                  <div key={o.id} className="bg-white rounded-2xl border border-indigo-200 p-4 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">Haul Order</span>
+                        <p className="font-semibold text-gray-900 text-sm">{o.buyer.company ?? o.buyer.name ?? "Buyer"}</p>
+                      </div>
+                      <p className="text-xs text-gray-500">{o.pit?.name} · Hauler: {haulerName}</p>
+                      <p className="text-xs text-gray-400">
+                        {new Date(o.scheduledDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-bold text-gray-900">{o.loads} loads</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusColors[o.status] ?? "bg-gray-100 text-gray-500"}`}>
+                        {o.status}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Recent settlements */}
         {recentSettlements.length > 0 && (

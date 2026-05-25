@@ -4,11 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface Project  { id: string; name: string; }
+interface PitItem  { id: string; name: string; address?: string; state: string; pitType: string; }
 interface Driver   { id: string; name: string; truckType: string; haulRateCents: number; }
 interface Carrier  { id: string; name: string; haulRateCents: number; }
 
 interface Props {
   projects: Project[];
+  pits:     PitItem[];
   drivers:  Driver[];
   carriers: Carrier[];
 }
@@ -17,20 +19,21 @@ const DEPOSIT_PERCENT = 25;
 
 type Mode = "direct" | "broadcast";
 
-export default function NewHaulOrderForm({ projects, drivers, carriers }: Props) {
+export default function NewHaulOrderForm({ projects, pits, drivers, carriers }: Props) {
   const router = useRouter();
 
-  const [mode,         setMode]         = useState<Mode>("direct");
-  const [haulerType,   setHaulerType]   = useState<"driver" | "carrier">("driver");
-  const [selectedId,   setSelectedId]   = useState("");
+  const [mode,          setMode]          = useState<Mode>("direct");
+  const [haulerType,    setHaulerType]    = useState<"driver" | "carrier">("driver");
+  const [selectedId,    setSelectedId]    = useState("");
   const [broadcastRate, setBroadcastRate] = useState("");
-  const [projectId,    setProjectId]    = useState("");
+  const [pitId,         setPitId]         = useState("");
+  const [projectId,     setProjectId]     = useState("");
   const [scheduledDate, setScheduledDate] = useState("");
-  const [loads,        setLoads]        = useState("1");
-  const [notes,        setNotes]        = useState("");
-  const [expiresIn,    setExpiresIn]    = useState("60");
-  const [submitting,   setSubmitting]   = useState(false);
-  const [error,        setError]        = useState("");
+  const [loads,         setLoads]         = useState("1");
+  const [notes,         setNotes]         = useState("");
+  const [expiresIn,     setExpiresIn]     = useState("60");
+  const [submitting,    setSubmitting]    = useState(false);
+  const [error,         setError]         = useState("");
 
   const list = haulerType === "driver" ? drivers : carriers;
   const selected = mode === "direct" ? list.find((x) => x.id === selectedId) : null;
@@ -46,6 +49,7 @@ export default function NewHaulOrderForm({ projects, drivers, carriers }: Props)
     e.preventDefault();
     if (mode === "direct" && !selectedId) { setError("Select a driver or carrier."); return; }
     if (mode === "broadcast" && rateInCents <= 0) { setError("Enter your offered rate per load."); return; }
+    if (!pitId) { setError("Select the pit you are hauling from."); return; }
     setSubmitting(true);
     setError("");
     try {
@@ -54,14 +58,15 @@ export default function NewHaulOrderForm({ projects, drivers, carriers }: Props)
         : undefined;
 
       const body: Record<string, unknown> = {
-        broadcast:          mode === "broadcast",
-        projectId:          projectId || undefined,
-        scheduledDate:      new Date(scheduledDate).toISOString(),
-        loads:              loadsNum,
-        haulRateCents:      rateInCents,
+        broadcast:           mode === "broadcast",
+        pitId,
+        projectId:           projectId || undefined,
+        scheduledDate:       new Date(scheduledDate).toISOString(),
+        loads:               loadsNum,
+        haulRateCents:       rateInCents,
         totalEstimatedCents: total,
-        depositHoldCents:   deposit,
-        notes:              notes || undefined,
+        depositHoldCents:    deposit,
+        notes:               notes || undefined,
         expiresAt,
       };
       if (mode === "direct") {
@@ -188,6 +193,31 @@ export default function NewHaulOrderForm({ projects, drivers, carriers }: Props)
         </div>
       )}
 
+      {/* Pit — required */}
+      <div>
+        <label className={labelClass}>Pickup Pit *</label>
+        {pits.length === 0 ? (
+          <p className="text-sm text-gray-400 py-2">No active pits available. Contact support.</p>
+        ) : (
+          <select
+            required
+            value={pitId}
+            onChange={(e) => setPitId(e.target.value)}
+            className={inputClass}
+          >
+            <option value="">— Select a pit —</option>
+            {pits.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}{p.address ? ` — ${p.address}` : ""}, {p.state}
+              </option>
+            ))}
+          </select>
+        )}
+        <p className="text-xs text-gray-400 mt-1">
+          The pit your hauler will pick up from. Loads logged at this pit are automatically tracked to this order.
+        </p>
+      </div>
+
       {/* Project */}
       {projects.length > 0 && (
         <div>
@@ -268,7 +298,7 @@ export default function NewHaulOrderForm({ projects, drivers, carriers }: Props)
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <button type="submit"
-        disabled={submitting || (mode === "direct" && !selectedId) || (mode === "broadcast" && rateInCents <= 0)}
+        disabled={submitting || !pitId || (mode === "direct" && !selectedId) || (mode === "broadcast" && rateInCents <= 0)}
         className="w-full bg-amber-600 text-white py-3 rounded-xl font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors">
         {submitting ? "Sending…" : mode === "broadcast" ? "Broadcast Haul Job" : "Send Haul Request"}
       </button>

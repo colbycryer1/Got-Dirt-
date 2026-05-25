@@ -13,12 +13,18 @@ export default async function NewHaulOrderPage() {
   if (!session) redirect("/login");
   if (!isBuyerRole(session.user.role) && session.user.role !== "ADMIN") redirect("/dashboard");
 
-  // Load projects and public drivers/carriers for the form
-  const [projects, publicDrivers, publicCarriers] = await Promise.all([
+  // Load projects, pits, and public drivers/carriers for the form
+  const [projects, pits, publicDrivers, publicCarriers] = await Promise.all([
     prisma.project.findMany({
       where:   { buyerUserId: session.user.id },
       select:  { id: true, name: true },
       orderBy: { name: "asc" },
+    }),
+    // All active pits — buyer picks which one they're hauling from
+    prisma.pit.findMany({
+      where:   { status: "ACTIVE" },
+      select:  { id: true, name: true, address: true, state: true, pitType: true },
+      orderBy: [{ state: "asc" }, { name: "asc" }],
     }),
     prisma.driverProfile.findMany({
       where:   { profilePublic: true, docsVerified: true },
@@ -51,15 +57,22 @@ export default async function NewHaulOrderPage() {
         <div className="bg-white rounded-2xl border border-gray-200 p-8">
           <NewHaulOrderForm
             projects={projects}
+            pits={pits.map((p) => ({
+              id:      p.id,
+              name:    p.name,
+              address: p.address ?? undefined,
+              state:   p.state,
+              pitType: p.pitType,
+            }))}
             drivers={publicDrivers.map((d) => ({
-              id:           d.id,
-              name:         d.user.name ?? "Driver",
-              truckType:    d.truckType ?? "",
+              id:            d.id,
+              name:          d.user.name ?? "Driver",
+              truckType:     d.truckType ?? "",
               haulRateCents: d.haulRateCents ?? 0,
             }))}
             carriers={publicCarriers.map((c) => ({
-              id:           c.id,
-              name:         c.companyName ?? c.user.name ?? "Carrier",
+              id:            c.id,
+              name:          c.companyName ?? c.user.name ?? "Carrier",
               haulRateCents: c.haulRateCents ?? 0,
             }))}
           />

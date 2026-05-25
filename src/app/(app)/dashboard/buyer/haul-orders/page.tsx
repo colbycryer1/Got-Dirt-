@@ -5,6 +5,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { isBuyerRole } from "@/types";
 import CompleteHaulButton from "./CompleteHaulButton";
+import { getHaulOrderLoadLogCounts } from "@/lib/haul-load-log";
 
 export const metadata = { title: "Haul Orders — Got Dirt?" };
 
@@ -58,6 +59,16 @@ export default async function BuyerHaulOrdersPage() {
   const activePlaced    = placedOrders.filter((o) => ["PENDING", "CONFIRMED", "ACTIVE"].includes(o.status));
   const completedPlaced = placedOrders.filter((o) => ["COMPLETED", "DENIED", "CANCELLED"].includes(o.status));
   const activeIncoming  = incomingOrders.filter((o) => ["PENDING", "CONFIRMED", "ACTIVE"].includes(o.status));
+
+  // Live load log counts — shown on active cards so buyer sees pit operator's count without clicking Mark Complete
+  const loadLogCounts = await getHaulOrderLoadLogCounts(
+    activePlaced.map((o) => ({
+      id:            o.id,
+      pitId:         (o as { pitId?: string | null }).pitId ?? null,
+      buyerUserId:   session.user.id,
+      scheduledDate: o.scheduledDate,
+    }))
+  );
 
   const totalChargedCents = placedOrders
     .filter((o) => o.status === "COMPLETED")
@@ -125,7 +136,7 @@ export default async function BuyerHaulOrdersPage() {
                 <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Active & Upcoming</h2>
                 <div className="space-y-3">
                   {activePlaced.map((o) => (
-                    <PlacedOrderRow key={o.id} order={o as PlacedOrder} statusColors={statusColors} />
+                    <PlacedOrderRow key={o.id} order={o as PlacedOrder} statusColors={statusColors} logCount={loadLogCounts[o.id]} />
                   ))}
                 </div>
               </section>
@@ -186,7 +197,7 @@ interface IncomingOrder {
   project: { name: string } | null;
 }
 
-function PlacedOrderRow({ order, statusColors }: { order: PlacedOrder; statusColors: Record<string, string> }) {
+function PlacedOrderRow({ order, statusColors, logCount }: { order: PlacedOrder; statusColors: Record<string, string>; logCount?: number }) {
   const haulerName = order.carrier?.companyName
     ?? order.carrier?.user.name
     ?? order.driver?.user.name
@@ -238,6 +249,21 @@ function PlacedOrderRow({ order, statusColors }: { order: PlacedOrder; statusCol
           )}
         </div>
       </div>
+      {/* Live load log count — updates automatically as pit operator logs loads */}
+      {logCount !== undefined && order.pit && (
+        <div className={`mt-2 rounded-xl px-4 py-2.5 text-xs flex items-center gap-2 ${logCount > 0 ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-500"}`}>
+          <span className={`w-2 h-2 rounded-full shrink-0 ${logCount > 0 ? "bg-blue-500 animate-pulse" : "bg-gray-300"}`} />
+          {logCount > 0
+            ? `Load Log: ${logCount} load${logCount !== 1 ? "s" : ""} recorded at ${order.pit.name} — updates automatically`
+            : `No loads logged yet at ${order.pit.name} — updates when pit operator records`}
+          {logCount !== order.loads && logCount > 0 && (
+            <span className={`ml-auto font-semibold ${logCount > order.loads ? "text-amber-700" : "text-green-700"}`}>
+              {logCount > order.loads ? `+${logCount - order.loads} over estimate` : `${order.loads - logCount} under estimate`}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Contact info for confirmed orders */}
       {order.status === "CONFIRMED" && (
         <div className="mt-3 pt-3 border-t border-gray-100 flex gap-4 flex-wrap text-xs text-gray-500">

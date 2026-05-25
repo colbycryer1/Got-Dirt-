@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { getHaulOrderLoadLogCounts } from "@/lib/haul-load-log";
 
 export const metadata = { title: "My Loads — Got Dirt?" };
 
@@ -38,10 +39,22 @@ export default async function DriverLoadsPage() {
       })
     : [];
 
-  const completed    = haulOrders.filter((o) => o.status === "COMPLETED");
-  const inProgress   = haulOrders.filter((o) => o.status === "ACTIVE" || o.status === "CONFIRMED");
-  const totalLoads   = completed.reduce((s, o) => s + o.loads, 0);
-  const totalEarned  = completed.reduce((s, o) => s + o.haulerPayoutCents, 0);
+  const completed  = haulOrders.filter((o) => o.status === "COMPLETED");
+  const inProgress = haulOrders.filter((o) => o.status === "ACTIVE" || o.status === "CONFIRMED");
+
+  // Use actualLoads for completed orders when available, otherwise estimated loads
+  const totalLoads  = completed.reduce((s, o) => s + (o.actualLoads ?? o.loads), 0);
+  const totalEarned = completed.reduce((s, o) => s + o.haulerPayoutCents, 0);
+
+  // Live load log counts for in-progress orders (auto-updates from pit operator)
+  const loadLogCounts = await getHaulOrderLoadLogCounts(
+    inProgress.map((o) => ({
+      id:            o.id,
+      pitId:         o.pitId,
+      buyerUserId:   o.buyerUserId,
+      scheduledDate: o.scheduledDate,
+    }))
+  );
 
   // Material breakdown across all completed haul orders
   const byMaterial: Record<string, number> = {};
@@ -99,29 +112,55 @@ export default async function DriverLoadsPage() {
           <div>
             <h2 className="text-lg font-bold text-gray-900 mb-3">In Progress</h2>
             <div className="space-y-3">
-              {inProgress.map((o) => (
-                <div key={o.id} className="bg-white rounded-2xl border border-blue-200 p-5 flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-gray-900">{o.buyer.company ?? o.buyer.name ?? "Buyer"}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusColors[o.status] ?? ""}`}>
-                        {o.status}
-                      </span>
+              {inProgress.map((o) => {
+                const logCount = loadLogCounts[o.id];
+                const hasLive  = logCount !== undefined;
+                return (
+                  <div key={o.id} className="bg-white rounded-2xl border border-blue-200 p-5 space-y-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-gray-900">{o.buyer.company ?? o.buyer.name ?? "Buyer"}</p>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusColors[o.status] ?? ""}`}>
+                            {o.status}
+                          </span>
+                        </div>
+                        {o.pit && <p className="text-sm text-gray-500">{o.pit.name} · {o.pit.state}</p>}
+                        {o.pit?.materialTypes?.length ? (
+                          <p className="text-xs text-gray-400 mt-0.5">{o.pit.materialTypes.join(" · ")}</p>
+                        ) : null}
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {new Date(o.scheduledDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        {hasLive ? (
+                          <>
+                            <p className="font-bold text-gray-900">{logCount} load{logCount !== 1 ? "s" : ""}</p>
+                            <p className="text-xs text-blue-600 font-semibold">Live · Pit Log</p>
+                            {logCount !== o.loads && (
+                              <p className="text-xs text-gray-400 line-through">{o.loads} est.</p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="font-bold text-gray-900">{o.loads} loads (est.)</p>
+                        )}
+                        <p className="text-sm text-amber-600">
+                          ~{fmt(hasLive && logCount > 0 ? logCount * o.haulRateCents * 0.9 : o.haulerPayoutCents)}
+                        </p>
+                      </div>
                     </div>
-                    {o.pit && <p className="text-sm text-gray-500">{o.pit.name} · {o.pit.state}</p>}
-                    {o.pit?.materialTypes?.length ? (
-                      <p className="text-xs text-gray-400 mt-0.5">{o.pit.materialTypes.join(" · ")}</p>
-                    ) : null}
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {new Date(o.scheduledDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-                    </p>
+                    {hasLive && o.pit && (
+                      <div className={`rounded-lg px-3 py-2 text-xs flex items-center gap-2 ${logCount > 0 ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-500"}`}>
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${logCount > 0 ? "bg-blue-500 animate-pulse" : "bg-gray-300"}`} />
+                        {logCount > 0
+                          ? `${logCount} load${logCount !== 1 ? "s" : ""} logged at ${o.pit.name}`
+                          : `Waiting for pit operator to log loads at ${o.pit.name}`}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-bold text-gray-900">{o.loads} loads</p>
-                    <p className="text-sm text-amber-600">{fmt(o.haulerPayoutCents)}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
