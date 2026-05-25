@@ -170,7 +170,7 @@ export async function sendHaulRequestToHauler(opts: {
   orderId: string;
   dashboardPath: string; // "/dashboard/driver/haul-orders" | "/dashboard/buyer/haul-orders"
 }) {
-  const { haulerEmail, haulerName, buyerCompany, loads, rateCents, scheduledDate, orderId, dashboardPath } = opts;
+  const { haulerEmail, haulerName, buyerCompany, loads, rateCents, scheduledDate, dashboardPath } = opts;
   const total = ((loads * rateCents) / 100).toFixed(2);
   await send(
     haulerEmail,
