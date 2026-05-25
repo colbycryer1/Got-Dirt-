@@ -59,6 +59,10 @@ export default async function BuyerHaulOrdersPage() {
   const completedPlaced = placedOrders.filter((o) => ["COMPLETED", "DENIED", "CANCELLED"].includes(o.status));
   const activeIncoming  = incomingOrders.filter((o) => ["PENDING", "CONFIRMED", "ACTIVE"].includes(o.status));
 
+  const totalChargedCents = placedOrders
+    .filter((o) => o.status === "COMPLETED")
+    .reduce((sum, o) => sum + (o.actualLoads != null ? o.actualLoads * o.haulRateCents : o.totalEstimatedCents), 0);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center gap-4">
@@ -75,6 +79,22 @@ export default async function BuyerHaulOrdersPage() {
             + New Haul Order
           </Link>
         </div>
+
+        {/* Summary stats */}
+        {placedOrders.length > 0 && (
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "Total Orders",    value: placedOrders.length },
+              { label: "Active / Pending", value: activePlaced.length },
+              { label: "Total Charged",   value: `$${(totalChargedCents / 100).toFixed(2)}` },
+            ].map((s) => (
+              <div key={s.label} className="bg-white rounded-2xl border border-gray-200 p-5 text-center">
+                <p className="text-2xl font-black text-gray-900">{s.value}</p>
+                <p className="text-sm text-gray-500 mt-1">{s.label}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Carrier incoming requests */}
         {role === "CARRIER" && activeIncoming.length > 0 && (
@@ -218,6 +238,15 @@ function PlacedOrderRow({ order, statusColors }: { order: PlacedOrder; statusCol
           )}
         </div>
       </div>
+      {/* Contact info for confirmed orders */}
+      {order.status === "CONFIRMED" && (
+        <div className="mt-3 pt-3 border-t border-gray-100 flex gap-4 flex-wrap text-xs text-gray-500">
+          {(order.driver?.user.phone ?? order.carrier?.user.phone) && (
+            <span>📞 {order.driver?.user.phone ?? order.carrier?.user.phone}</span>
+          )}
+        </div>
+      )}
+
       {canComplete && (
         <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
           {/* Amendment status badge */}

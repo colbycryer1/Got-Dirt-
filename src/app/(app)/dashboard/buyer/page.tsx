@@ -196,7 +196,7 @@ export default async function BuyerDashboardPage() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-gray-900">Active Orders</h2>
-              <Link href="/dashboard/buyer/orders" className="text-sm text-amber-600 hover:underline">View all →</Link>
+              <Link href="/dashboard/buyer/orders?status=ACTIVE" className="text-sm text-amber-600 hover:underline">View all →</Link>
             </div>
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
               <table className="w-full text-sm">

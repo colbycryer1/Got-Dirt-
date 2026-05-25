@@ -14,12 +14,29 @@ const statusStyles: Record<string, string> = {
   CANCELLED: "bg-red-100 text-red-600",
 };
 
-export default async function OrderHistoryPage() {
+const STATUS_LABELS: Record<string, string> = {
+  ACTIVE:    "Active",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled",
+};
+
+export default async function OrderHistoryPage({
+  searchParams,
+}: {
+  searchParams: { status?: string };
+}) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
+  const filterStatus = searchParams.status?.toUpperCase();
+  const validStatuses = ["ACTIVE", "COMPLETED", "CANCELLED"];
+  const activeFilter = validStatuses.includes(filterStatus ?? "") ? filterStatus : undefined;
+
   const orders = await prisma.order.findMany({
-    where:   { buyerUserId: session.user.id },
+    where:   {
+      buyerUserId: session.user.id,
+      ...(activeFilter ? { status: activeFilter as "ACTIVE" | "COMPLETED" | "CANCELLED" } : {}),
+    },
     include: {
       pit:     { select: { name: true, address: true, state: true } },
       project: { select: { name: true } },
@@ -49,7 +66,23 @@ export default async function OrderHistoryPage() {
       </nav>
 
       <div className="max-w-4xl mx-auto px-6 py-10 space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900">Order History</h1>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <h1 className="text-2xl font-bold text-gray-900">
+            {activeFilter ? `${STATUS_LABELS[activeFilter]} Orders` : "Order History"}
+          </h1>
+          <div className="flex gap-2">
+            <Link href="/dashboard/buyer/orders"
+              className={`text-xs px-3 py-1.5 rounded-full font-semibold transition-colors ${!activeFilter ? "bg-gray-900 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-gray-400"}`}>
+              All
+            </Link>
+            {["ACTIVE", "COMPLETED", "CANCELLED"].map((s) => (
+              <Link key={s} href={`/dashboard/buyer/orders?status=${s}`}
+                className={`text-xs px-3 py-1.5 rounded-full font-semibold transition-colors ${activeFilter === s ? "bg-gray-900 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-gray-400"}`}>
+                {STATUS_LABELS[s]}
+              </Link>
+            ))}
+          </div>
+        </div>
 
         {/* Summary stats */}
         <div className="grid grid-cols-3 gap-4">
