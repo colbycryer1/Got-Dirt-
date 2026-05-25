@@ -65,10 +65,12 @@ export default function OperatorPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [pendingMaterial, setPendingMaterial] = useState<string | null>(null);
   const [logging, setLogging] = useState(false);
+  const [flashMaterial, setFlashMaterial] = useState<string | null>(null);
   const [lastLogged, setLastLogged] = useState<{ material: string; time: Date } | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -122,9 +124,36 @@ export default function OperatorPage() {
     }
   }
 
+  function optimisticAdd(order: Order, material: string): Order {
+    return {
+      ...order,
+      loadEvents: [
+        ...order.loadEvents,
+        { id: `opt-${Date.now()}`, materialType: material, rateCentsAtTime: 0, createdAt: new Date().toISOString() },
+      ],
+    };
+  }
+
+  function optimisticRemoveLast(order: Order): Order {
+    return { ...order, loadEvents: order.loadEvents.slice(0, -1) };
+  }
+
+  function applyOrderUpdate(updated: Order) {
+    setSelectedOrder(updated);
+    setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+  }
+
   async function logLoad(material: string) {
-    if (!selectedOrder) return;
+    if (!selectedOrder || logging) return;
     setLogging(true);
+
+    // Optimistic: update count instantly, flash the button
+    const snapshot = selectedOrder;
+    applyOrderUpdate(optimisticAdd(selectedOrder, material));
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    setFlashMaterial(material);
+    flashTimer.current = setTimeout(() => setFlashMaterial(null), 700);
+
     try {
       const res = await fetch("/api/loads/manual", {
         method: "POST",
@@ -133,6 +162,7 @@ export default function OperatorPage() {
       });
       if (!res.ok) {
         const err = await res.json();
+        applyOrderUpdate(snapshot); // revert
         alert(err.error ?? "Failed to log load");
         return;
       }
@@ -141,27 +171,33 @@ export default function OperatorPage() {
       setCanUndo(true);
       if (undoTimer.current) clearTimeout(undoTimer.current);
       undoTimer.current = setTimeout(() => setCanUndo(false), 2 * 60 * 1000);
-      // Re-fetch to update count
-      await fetchOrders();
+      // Background sync — don't await, count already correct
+      fetchOrders();
     } finally {
       setLogging(false);
     }
   }
 
   async function handleUndo() {
-    if (!selectedOrder || !canUndo) return;
+    if (!selectedOrder || !canUndo || logging) return;
     setLogging(true);
+
+    // Optimistic: remove last event instantly
+    const snapshot = selectedOrder;
+    applyOrderUpdate(optimisticRemoveLast(selectedOrder));
+
     try {
       const res = await fetch(`/api/loads/manual?orderId=${selectedOrder.id}`, { method: "DELETE" });
       if (!res.ok) {
         const err = await res.json();
+        applyOrderUpdate(snapshot); // revert
         alert(err.error ?? "Could not undo");
         return;
       }
       setCanUndo(false);
       setLastLogged(null);
       if (undoTimer.current) clearTimeout(undoTimer.current);
-      await fetchOrders();
+      fetchOrders();
     } finally {
       setLogging(false);
     }
@@ -260,25 +296,25 @@ export default function OperatorPage() {
             <div className="grid grid-cols-2 gap-3">
               {selectedOrder.pit.materialTypes.map((material) => {
                 const isPending = pendingMaterial === material;
+                const isFlash  = flashMaterial === material;
                 const count = todayCounts[material] ?? 0;
                 return (
                   <button
                     key={material}
                     onClick={() => handleMaterialTap(material)}
-                    disabled={logging}
                     className={[
-                      "relative rounded-2xl p-4 text-left transition-all select-none",
-                      "active:scale-95 disabled:opacity-60",
+                      "relative rounded-2xl p-4 text-left transition-all duration-150 select-none active:scale-95",
                       defaultColor(material),
                       defaultText(material),
-                      isPending ? "ring-4 ring-white ring-offset-2 ring-offset-gray-950 scale-105" : "",
+                      isPending ? "ring-4 ring-white ring-offset-2 ring-offset-gray-950 scale-[1.04]" : "",
+                      isFlash   ? "ring-4 ring-green-400 ring-offset-2 ring-offset-gray-950 scale-95" : "",
                     ].join(" ")}
                   >
                     <p className="font-bold text-sm leading-tight">{material}</p>
-                    {count > 0 && (
-                      <p className="text-xs mt-1 opacity-80">{count} today</p>
-                    )}
-                    {isPending && (
+                    <p className="text-xs mt-1 opacity-80 tabular-nums min-h-[1rem]">
+                      {isFlash ? "✓ Logged!" : count > 0 ? `${count} today` : ""}
+                    </p>
+                    {isPending && !isFlash && (
                       <span className="absolute top-2 right-2 text-lg">✓?</span>
                     )}
                   </button>
