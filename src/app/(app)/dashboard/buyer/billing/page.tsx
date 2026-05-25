@@ -6,6 +6,7 @@ import { Elements, CardElement, useStripe, useElements } from "@stripe/react-str
 import Link from "next/link";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+const isTestMode = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.startsWith("pk_test_");
 
 interface CardInfo {
   brand: string;
@@ -141,6 +142,13 @@ function BillingInner() {
               </button>
             ) : (
               <form onSubmit={handleSave} className="space-y-4">
+                {isTestMode && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-xs text-blue-700 space-y-0.5">
+                    <p className="font-semibold">Test mode — use a test card:</p>
+                    <p>Card number: <span className="font-mono font-bold">4242 4242 4242 4242</span></p>
+                    <p>Expiry: any future date &nbsp;·&nbsp; CVC: any 3 digits &nbsp;·&nbsp; ZIP: any 5 digits</p>
+                  </div>
+                )}
                 <div className="border border-gray-200 rounded-xl px-4 py-3">
                   <CardElement
                     options={{

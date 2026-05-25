@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import CloseOrderButton from "./CloseOrderButton";
+import ChargeOrderButton from "./ChargeOrderButton";
 
 export const metadata = { title: "Order History — Got Dirt?" };
 
@@ -78,9 +79,11 @@ export default async function OrderHistoryPage() {
               const spent = order.settlements
                 .filter((s) => s.status === "PROCESSED")
                 .reduce((sum, s) => sum + s.grossAmountCents, 0);
+              const hasProcessedSettlement = order.settlements.some((s) => s.status === "PROCESSED");
+              const hasUnchargedLoads = order._count.loadEvents > 0 && !hasProcessedSettlement;
 
               return (
-                <div key={order.id} className="bg-white rounded-2xl border border-gray-200 p-5">
+                <div key={order.id} className={`bg-white rounded-2xl border p-5 ${hasUnchargedLoads && order.status === "COMPLETED" ? "border-amber-300" : "border-gray-200"}`}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -88,6 +91,11 @@ export default async function OrderHistoryPage() {
                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusStyles[order.status] ?? "bg-gray-100 text-gray-600"}`}>
                           {order.status}
                         </span>
+                        {hasUnchargedLoads && (
+                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                            Unpaid
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-gray-500 mt-0.5">
                         {order.project.name} · {order.pit.address ? `${order.pit.address}, ` : ""}{order.pit.state}
@@ -111,9 +119,14 @@ export default async function OrderHistoryPage() {
                         </>
                       )}
                     </div>
-                    {order.status === "ACTIVE" && (
-                      <CloseOrderButton orderId={order.id} />
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {hasUnchargedLoads && (
+                        <ChargeOrderButton orderId={order.id} loadCount={order._count.loadEvents} />
+                      )}
+                      {order.status === "ACTIVE" && (
+                        <CloseOrderButton orderId={order.id} />
+                      )}
+                    </div>
                   </div>
                 </div>
               );
