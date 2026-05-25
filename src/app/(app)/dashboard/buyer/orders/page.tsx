@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import CloseOrderButton from "./CloseOrderButton";
 
 export const metadata = { title: "Order History — Got Dirt?" };
 
@@ -101,12 +102,19 @@ export default async function OrderHistoryPage() {
                     </div>
                   </div>
 
-                  {order.settlements.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-100 flex gap-4 text-xs text-gray-500">
-                      <span>{order.settlements.length} settlement{order.settlements.length !== 1 ? "s" : ""}</span>
-                      <span>{order.settlements.filter((s) => s.status === "PROCESSED").length} processed</span>
+                  <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex gap-4 text-xs text-gray-500">
+                      {order.settlements.length > 0 && (
+                        <>
+                          <span>{order.settlements.length} settlement{order.settlements.length !== 1 ? "s" : ""}</span>
+                          <span>{order.settlements.filter((s) => s.status === "PROCESSED").length} processed</span>
+                        </>
+                      )}
                     </div>
-                  )}
+                    {order.status === "ACTIVE" && (
+                      <CloseOrderButton orderId={order.id} />
+                    )}
+                  </div>
                 </div>
               );
             })}
