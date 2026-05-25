@@ -29,11 +29,6 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   }
 
   // Find all verified, non-disputed loads that have NOT been settled yet
-  const settledLoadIds = await prisma.settlement.findMany({
-    where:  { orderId: order.id, status: "PROCESSED" },
-    select: { id: true },
-  });
-  // Get load events not covered by any processed settlement for this order
   const alreadySettledDates = await prisma.settlement.findMany({
     where:  { orderId: order.id, status: "PROCESSED" },
     select: { date: true },
