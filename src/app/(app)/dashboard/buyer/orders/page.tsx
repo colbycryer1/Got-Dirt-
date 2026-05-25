@@ -24,6 +24,7 @@ export default async function OrderHistoryPage() {
       pit:     { select: { name: true, address: true, state: true } },
       project: { select: { name: true } },
       _count:  { select: { loadEvents: true } },
+      loadEvents: { select: { materialType: true }, where: { verified: true } },
       settlements: {
         select: { grossAmountCents: true, verifiedLoadCount: true, status: true },
       },
@@ -84,6 +85,10 @@ export default async function OrderHistoryPage() {
                 .reduce((sum, s) => sum + s.verifiedLoadCount, 0);
               const unchargedLoadCount = order._count.loadEvents - settledLoadCount;
               const hasUnchargedLoads = unchargedLoadCount > 0;
+              const materialCounts = order.loadEvents.reduce<Record<string, number>>((acc, e) => {
+                acc[e.materialType] = (acc[e.materialType] ?? 0) + 1;
+                return acc;
+              }, {});
 
               return (
                 <div key={order.id} className={`bg-white rounded-2xl border p-5 ${hasUnchargedLoads && order.status === "COMPLETED" ? "border-amber-300" : "border-gray-200"}`}>
@@ -113,6 +118,15 @@ export default async function OrderHistoryPage() {
                       <p className="text-xs text-gray-400 mt-1">
                         {new Date(order.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
                       </p>
+                      {Object.keys(materialCounts).length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {Object.entries(materialCounts).map(([mat, cnt]) => (
+                            <span key={mat} className="text-xs bg-stone-100 text-stone-700 border border-stone-200 px-2 py-0.5 rounded-full font-medium">
+                              {mat} × {cnt}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-lg font-bold text-gray-900">${(spent / 100).toFixed(2)}</p>

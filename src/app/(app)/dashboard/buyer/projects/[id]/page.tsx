@@ -19,6 +19,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
           pit: { select: { name: true, state: true } },
           settlements: { orderBy: { date: "desc" }, take: 1 },
           _count: { select: { loadEvents: true } },
+          loadEvents: { select: { materialType: true }, where: { verified: true } },
         },
         orderBy: { date: "desc" },
       },
@@ -87,7 +88,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    {["Date", "Pit", "Loads", "Settlement", "Status"].map((h) => (
+                    {["Date", "Pit", "Materials", "Loads", "Settlement", "Status"].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -95,12 +96,29 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
                 <tbody className="divide-y divide-gray-100">
                   {project.orders.map((o) => {
                     const settle = o.settlements[0];
+                    const materialCounts = o.loadEvents.reduce<Record<string, number>>((acc, e) => {
+                      acc[e.materialType] = (acc[e.materialType] ?? 0) + 1;
+                      return acc;
+                    }, {});
                     return (
                       <tr key={o.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                           {new Date(o.date).toLocaleDateString()}
                         </td>
                         <td className="px-4 py-3 font-medium text-gray-900">{o.pit.name}</td>
+                        <td className="px-4 py-3">
+                          {Object.keys(materialCounts).length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {Object.entries(materialCounts).map(([mat, cnt]) => (
+                                <span key={mat} className="text-xs bg-stone-100 text-stone-700 border border-stone-200 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">
+                                  {mat} × {cnt}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">
                             {o._count.loadEvents}
