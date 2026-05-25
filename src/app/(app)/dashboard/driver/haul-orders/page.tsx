@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getHaulOrderLoadLogCounts } from "@/lib/haul-load-log";
+import { getPitOwnerLoadLogCounts } from "@/lib/haul-load-log";
 import RespondForm from "./RespondForm";
 import AmendmentRespondForm from "./AmendmentRespondForm";
 
@@ -45,14 +45,7 @@ export default async function DriverHaulOrdersPage({
   const liveOrders = orders.filter(
     (o) => o.pitId && (o.status === "CONFIRMED" || o.status === "ACTIVE")
   );
-  const loadLogCounts = await getHaulOrderLoadLogCounts(
-    liveOrders.map((o) => ({
-      id:            o.id,
-      pitId:         o.pitId,
-      buyerUserId:   o.buyerUserId,
-      scheduledDate: o.scheduledDate,
-    }))
-  );
+  const loadLogCounts = await getPitOwnerLoadLogCounts(liveOrders.map((o) => o.id));
 
   const respondOrderId = searchParams.respond;
 

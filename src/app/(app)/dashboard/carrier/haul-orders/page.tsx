@@ -5,7 +5,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import RespondForm from "@/app/(app)/dashboard/driver/haul-orders/RespondForm";
 import AmendmentRespondForm from "@/app/(app)/dashboard/driver/haul-orders/AmendmentRespondForm";
-import { getHaulOrderLoadLogCounts } from "@/lib/haul-load-log";
+import { getPitOwnerLoadLogCounts } from "@/lib/haul-load-log";
 
 export const metadata = { title: "Haul Orders — Got Dirt?" };
 
@@ -44,14 +44,7 @@ export default async function CarrierHaulOrdersPage({
   const liveOrders = orders.filter(
     (o) => o.pitId && (o.status === "CONFIRMED" || o.status === "ACTIVE")
   );
-  const loadLogCounts = await getHaulOrderLoadLogCounts(
-    liveOrders.map((o) => ({
-      id:            o.id,
-      pitId:         o.pitId,
-      buyerUserId:   o.buyerUserId,
-      scheduledDate: o.scheduledDate,
-    }))
-  );
+  const loadLogCounts = await getPitOwnerLoadLogCounts(liveOrders.map((o) => o.id));
 
   const respondOrderId = searchParams.respond;
 

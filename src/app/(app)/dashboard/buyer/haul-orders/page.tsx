@@ -5,7 +5,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { isBuyerRole } from "@/types";
 import CompleteHaulButton from "./CompleteHaulButton";
-import { getHaulOrderLoadLogCounts } from "@/lib/haul-load-log";
+import { getPitOwnerLoadLogCounts } from "@/lib/haul-load-log";
 
 export const metadata = { title: "Haul Orders — Got Dirt?" };
 
@@ -60,15 +60,8 @@ export default async function BuyerHaulOrdersPage() {
   const completedPlaced = placedOrders.filter((o) => ["COMPLETED", "DENIED", "CANCELLED"].includes(o.status));
   const activeIncoming  = incomingOrders.filter((o) => ["PENDING", "CONFIRMED", "ACTIVE"].includes(o.status));
 
-  // Live load log counts — shown on active cards so buyer sees pit operator's count without clicking Mark Complete
-  const loadLogCounts = await getHaulOrderLoadLogCounts(
-    activePlaced.map((o) => ({
-      id:            o.id,
-      pitId:         (o as { pitId?: string | null }).pitId ?? null,
-      buyerUserId:   session.user.id,
-      scheduledDate: o.scheduledDate,
-    }))
-  );
+  // Live load log counts — from PitOwnerLoadLog so buyer sees pit operator's authoritative tap count
+  const loadLogCounts = await getPitOwnerLoadLogCounts(activePlaced.map((o) => o.id));
 
   const totalChargedCents = placedOrders
     .filter((o) => o.status === "COMPLETED")

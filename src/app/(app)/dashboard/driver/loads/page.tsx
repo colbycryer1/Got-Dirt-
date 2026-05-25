@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getHaulOrderLoadLogCounts } from "@/lib/haul-load-log";
+import { getPitOwnerLoadLogCounts } from "@/lib/haul-load-log";
 
 export const metadata = { title: "My Loads — Got Dirt?" };
 
@@ -47,14 +47,7 @@ export default async function DriverLoadsPage() {
   const totalEarned = completed.reduce((s, o) => s + o.haulerPayoutCents, 0);
 
   // Live load log counts for in-progress orders (auto-updates from pit operator)
-  const loadLogCounts = await getHaulOrderLoadLogCounts(
-    inProgress.map((o) => ({
-      id:            o.id,
-      pitId:         o.pitId,
-      buyerUserId:   o.buyerUserId,
-      scheduledDate: o.scheduledDate,
-    }))
-  );
+  const loadLogCounts = await getPitOwnerLoadLogCounts(inProgress.map((o) => o.id));
 
   // Material breakdown across all completed haul orders
   const byMaterial: Record<string, number> = {};

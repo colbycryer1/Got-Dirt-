@@ -8,7 +8,7 @@ import GpsLoadLogButton from "./GpsLoadLogButton";
 import AvailableJobsFeed from "./AvailableJobsFeed";
 import HaulOrderAlertModal from "./HaulOrderAlertModal";
 import LogoutButton from "@/components/LogoutButton";
-import { getHaulOrderLoadLogCounts } from "@/lib/haul-load-log";
+import { getPitOwnerLoadLogCounts } from "@/lib/haul-load-log";
 
 export const metadata = { title: "Driver Dashboard — Got Dirt?" };
 
@@ -53,15 +53,8 @@ export default async function DriverDashboard() {
     (o) => o.pitId && (o.status === "CONFIRMED" || o.status === "ACTIVE")
   );
 
-  // Live pit operator Load Log counts (server-rendered, updates on each page load)
-  const pitLogCounts = await getHaulOrderLoadLogCounts(
-    ordersWithPit.map((o) => ({
-      id:            o.id,
-      pitId:         o.pitId,
-      buyerUserId:   o.buyerUserId,
-      scheduledDate: o.scheduledDate,
-    }))
-  );
+  // Live pit operator Load Log counts — from PitOwnerLoadLog (authoritative tap count)
+  const pitLogCounts = await getPitOwnerLoadLogCounts(ordersWithPit.map((o) => o.id));
 
   // Sum of all pit operator counts across confirmed/active orders today
   const totalPitLogCount = Object.values(pitLogCounts).reduce((s, n) => s + n, 0);

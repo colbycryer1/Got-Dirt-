@@ -1,12 +1,29 @@
 import { prisma } from "./prisma";
 
 /**
- * For each haul order, count LoadEvents logged by the pit operator at the
- * same pit for the same buyer on the same scheduled date.  This is the
- * authoritative load count — the same Load Log the buyer sees on their
- * pit material Order.
- *
- * Returns a map of haulOrderId → load count (0 if no linked events).
+ * Returns pit owner tap counts from PitOwnerLoadLog keyed by haulOrderId.
+ * This is the authoritative "pit operator logged X loads" count shown to
+ * drivers and buyers for dispute resolution.
+ */
+export async function getPitOwnerLoadLogCounts(
+  haulOrderIds: string[]
+): Promise<Record<string, number>> {
+  if (haulOrderIds.length === 0) return {};
+  const groups = await prisma.pitOwnerLoadLog.groupBy({
+    by:    ["haulOrderId"],
+    where: { haulOrderId: { in: haulOrderIds } },
+    _count: { id: true },
+  });
+  const counts: Record<string, number> = {};
+  for (const g of groups) {
+    counts[g.haulOrderId] = g._count.id;
+  }
+  return counts;
+}
+
+/**
+ * Legacy: counts LoadEvents on pit material Orders bridged via pit+buyer+date.
+ * Kept for reference — callers should prefer getPitOwnerLoadLogCounts().
  */
 export async function getHaulOrderLoadLogCounts(
   haulOrders: Array<{
