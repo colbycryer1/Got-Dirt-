@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isBuyerRole } from "@/types";
 import { sendHaulRequestToHauler, sendHaulBroadcast } from "@/lib/email";
-import { filterAvailableHaulers } from "@/lib/hauler-overlap";
+import { filterAvailableHaulers, getHaulerConflicts } from "@/lib/hauler-overlap";
 
 const createSchema = z.object({
   driverId:      z.string().optional(),
@@ -121,6 +121,37 @@ export async function POST(req: Request) {
       if (pit.dailyHaulRateLockedAt >= today) {
         pitRateBroadcast  = true;
         resolvedHaulRate  = pit.dailyHaulRateCents;
+      }
+    }
+  }
+
+  // For direct requests, verify the selected hauler has no conflicting orders
+  // before creating the order. Return 409 so the form can show the error.
+  if (!isBuyerOp && !broadcast && (orderData.driverId || orderData.carrierId)) {
+    const scheduledDate   = new Date(orderData.scheduledDate);
+    const newProjectId    = orderData.projectId ?? null;
+
+    if (orderData.driverId) {
+      const conflicts = await getHaulerConflicts(
+        "driver", orderData.driverId, scheduledDate, session.user.id, newProjectId,
+      );
+      if (conflicts.length > 0) {
+        return NextResponse.json(
+          { error: "The driver you selected is unavailable during the selected time. Please choose a different driver or adjust the scheduled time." },
+          { status: 409 },
+        );
+      }
+    }
+
+    if (orderData.carrierId) {
+      const conflicts = await getHaulerConflicts(
+        "carrier", orderData.carrierId, scheduledDate, session.user.id, newProjectId,
+      );
+      if (conflicts.length > 0) {
+        return NextResponse.json(
+          { error: "The carrier you selected is unavailable during the selected time. Please choose a different carrier or adjust the scheduled time." },
+          { status: 409 },
+        );
       }
     }
   }
