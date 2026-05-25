@@ -105,18 +105,42 @@ export async function POST(req: Request) {
   const { broadcast, ...orderData } = parsed.data;
 
   const isBuyerOp = parsed.data.buyerOperating === true;
+
+  // Detect pit-rate broadcast: pit has a rate locked today → broadcast to ALL haulers
+  let pitRateBroadcast = false;
+  let resolvedHaulRate = orderData.haulRateCents;
+  if (broadcast && orderData.pitId) {
+    const pit = await prisma.pit.findUnique({
+      where:  { id: orderData.pitId },
+      select: { dailyHaulRateCents: true, dailyHaulRateLockedAt: true },
+    });
+    if (pit?.dailyHaulRateCents && pit.dailyHaulRateLockedAt) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (pit.dailyHaulRateLockedAt >= today) {
+        pitRateBroadcast  = true;
+        resolvedHaulRate  = pit.dailyHaulRateCents;
+      }
+    }
+  }
+
   const haulFeePercent    = isBuyerOp ? 0 : (platformSettings?.haulFeePercent ?? 10.0);
-  const platformFeeCents  = isBuyerOp ? 0 : Math.round(orderData.totalEstimatedCents * haulFeePercent / 100);
-  const haulerPayoutCents = isBuyerOp ? 0 : orderData.totalEstimatedCents - platformFeeCents;
+  const resolvedTotal     = resolvedHaulRate * orderData.loads;
+  const platformFeeCents  = isBuyerOp ? 0 : Math.round(resolvedTotal * haulFeePercent / 100);
+  const haulerPayoutCents = isBuyerOp ? 0 : resolvedTotal - platformFeeCents;
 
   const order = await prisma.haulOrder.create({
     data: {
       buyerUserId:  session.user.id,
       ...orderData,
-      scheduledDate:      new Date(orderData.scheduledDate),
-      expiresAt:          orderData.expiresAt ? new Date(orderData.expiresAt) : undefined,
-      status:             isBuyerOp ? "CONFIRMED" : undefined,
-      platformFeePercent: haulFeePercent,
+      haulRateCents:        resolvedHaulRate,
+      totalEstimatedCents:  resolvedTotal,
+      scheduledDate:        new Date(orderData.scheduledDate),
+      expiresAt:            orderData.expiresAt ? new Date(orderData.expiresAt) : undefined,
+      status:               isBuyerOp ? "CONFIRMED" : undefined,
+      broadcast,
+      pitRateBroadcast,
+      platformFeePercent:   haulFeePercent,
       platformFeeCents,
       haulerPayoutCents,
     },
@@ -154,16 +178,19 @@ export async function POST(req: Request) {
   const buyerCompany = buyer?.company ?? buyer?.name ?? null;
 
   if (broadcast) {
-    // Notify all live drivers and all carriers
+    // Buyer-rate broadcasts go to INDEPENDENT DRIVERS ONLY.
+    // Pit-rate broadcasts (pit owner locked a daily rate) go to ALL haulers.
     const [drivers, carriers] = await Promise.all([
       prisma.driverProfile.findMany({
         where:  { profilePublic: true, docsVerified: true },
         select: { user: { select: { email: true, name: true } } },
       }),
-      prisma.carrierProfile.findMany({
-        where:  { profilePublic: true },
-        select: { user: { select: { email: true } } },
-      }),
+      pitRateBroadcast
+        ? prisma.carrierProfile.findMany({
+            where:  { profilePublic: true },
+            select: { user: { select: { email: true } } },
+          })
+        : Promise.resolve([]),
     ]);
     const emails = [
       ...drivers.map((d) => d.user.email).filter(Boolean),

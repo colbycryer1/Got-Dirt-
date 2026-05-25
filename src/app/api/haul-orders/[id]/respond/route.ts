@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { sendHaulConfirmedToBuyer, sendHaulDeniedToBuyer } from "@/lib/email";
+import { getHaulerConflicts } from "@/lib/hauler-overlap";
 
 const schema = z.object({
   action: z.enum(["CONFIRM", "DENY"]),
@@ -42,6 +43,32 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   if (order.expiresAt && order.expiresAt < new Date()) {
     return NextResponse.json({ error: "This order has expired" }, { status: 410 });
+  }
+
+  // Overlap check — only when confirming
+  if (parsed.data.action === "CONFIRM") {
+    if (isDriver && order.driverId) {
+      const conflicts = await getHaulerConflicts(
+        "driver", order.driverId, order.scheduledDate,
+        order.buyerUserId, order.projectId ?? null,
+      );
+      if (conflicts.length > 0) {
+        return NextResponse.json({
+          error: "You already have a confirmed order within 4 hours of this time. Cancel or complete it first, or contact the buyer to reschedule.",
+        }, { status: 409 });
+      }
+    }
+    if (isCarrier && order.carrierId) {
+      const conflicts = await getHaulerConflicts(
+        "carrier", order.carrierId, order.scheduledDate,
+        order.buyerUserId, order.projectId ?? null,
+      );
+      if (conflicts.length > 0) {
+        return NextResponse.json({
+          error: "Your company already has a confirmed order within 4 hours of this time. Resolve the conflict before accepting.",
+        }, { status: 409 });
+      }
+    }
   }
 
   const newStatus = parsed.data.action === "CONFIRM" ? "CONFIRMED" : "DENIED";

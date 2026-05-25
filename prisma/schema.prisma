@@ -243,6 +243,10 @@ model Pit {
   kmzUploadId     String?
   materialTypes   String[] @default([])
 
+  // Pit owner locks a daily haul rate → broadcast goes to ALL haulers (drivers + carriers)
+  dailyHaulRateCents    Int?
+  dailyHaulRateLockedAt DateTime? // null or timestamp of today's lock
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -765,6 +769,9 @@ model HaulOrder {
   haulerPayoutCents  Int   @default(0)  // what the driver/carrier receives
 
   stripePaymentIntentId String? @unique
+
+  broadcast        Boolean @default(false) // open-broadcast order
+  pitRateBroadcast Boolean @default(false) // rate locked by pit owner → goes to all haulers
 
   status    HaulOrderStatus @default(PENDING)
   expiresAt DateTime?       // first-come-first-served cutoff

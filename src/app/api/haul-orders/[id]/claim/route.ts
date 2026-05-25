@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { sendHaulClaimedToBuyer } from "@/lib/email";
+import { getHaulerConflicts } from "@/lib/hauler-overlap";
 
 // PATCH /api/haul-orders/[id]/claim
 // Driver or carrier claims an open broadcast FCFS haul order
@@ -25,10 +26,25 @@ export async function PATCH(_req: Request, { params }: { params: { id: string } 
       if (order.driverId || order.carrierId) throw new Error("Order has already been claimed");
       if (order.expiresAt && order.expiresAt < new Date()) throw new Error("Order has expired");
 
+      // Carriers can only claim pit-rate broadcasts (their rates are locked, not buyer-negotiated)
+      if (role === "CARRIER" && order.broadcast && !order.pitRateBroadcast) {
+        throw new Error("Carriers do not receive buyer-rate broadcasts. This job is for independent drivers only.");
+      }
+
       if (role === "DRIVER") {
         const profile = await tx.driverProfile.findUnique({ where: { userId: session.user.id } });
         if (!profile) throw new Error("Driver profile not found. Complete your profile first.");
         if (!profile.docsVerified) throw new Error("Your documents must be verified before accepting orders");
+
+        // Overlap check
+        const conflicts = await getHaulerConflicts(
+          "driver", profile.id, order.scheduledDate,
+          order.buyerUserId, order.projectId ?? null,
+        );
+        if (conflicts.length > 0) {
+          throw new Error("You already have a confirmed order within 4 hours of this time. Resolve the conflict before claiming.");
+        }
+
         return tx.haulOrder.update({
           where: { id: params.id },
           data:  { driverId: profile.id, status: "CONFIRMED" },
@@ -37,6 +53,16 @@ export async function PATCH(_req: Request, { params }: { params: { id: string } 
       } else {
         const profile = await tx.carrierProfile.findUnique({ where: { userId: session.user.id } });
         if (!profile) throw new Error("Carrier profile not found. Complete your profile first.");
+
+        // Overlap check
+        const conflicts = await getHaulerConflicts(
+          "carrier", profile.id, order.scheduledDate,
+          order.buyerUserId, order.projectId ?? null,
+        );
+        if (conflicts.length > 0) {
+          throw new Error("Your company already has a confirmed order within 4 hours of this time. Resolve the conflict before claiming.");
+        }
+
         return tx.haulOrder.update({
           where: { id: params.id },
           data:  { carrierId: profile.id, status: "CONFIRMED" },

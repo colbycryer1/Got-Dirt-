@@ -13,36 +13,47 @@ export default async function NewHaulOrderPage() {
   if (!session) redirect("/login");
   if (!isBuyerRole(session.user.role) && session.user.role !== "ADMIN") redirect("/dashboard");
 
-  // Load projects, pits, and public drivers/carriers for the form
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   const [projects, pits, publicDrivers, publicCarriers] = await Promise.all([
     prisma.project.findMany({
       where:   { buyerUserId: session.user.id },
       select:  { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    // All active pits — buyer picks which one they're hauling from
+    // All active pits with their daily haul rate lock
     prisma.pit.findMany({
       where:   { status: "ACTIVE" },
-      select:  { id: true, name: true, address: true, state: true, pitType: true },
+      select:  {
+        id: true, name: true, address: true, state: true, pitType: true,
+        dailyHaulRateCents: true, dailyHaulRateLockedAt: true,
+      },
       orderBy: [{ state: "asc" }, { name: "asc" }],
     }),
     prisma.driverProfile.findMany({
       where:   { profilePublic: true, docsVerified: true },
       select:  {
         id: true, truckType: true, haulRateCents: true,
+        liveLocationEnabled: true,
         user: { select: { name: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ liveLocationEnabled: "desc" }, { createdAt: "desc" }],
     }),
     prisma.carrierProfile.findMany({
       where:   { profilePublic: true },
-      select:  {
-        id: true, companyName: true, haulRateCents: true,
-        user: { select: { name: true } },
-      },
+      select:  { id: true, companyName: true, haulRateCents: true, user: { select: { name: true } } },
       orderBy: { companyName: "asc" },
     }),
   ]);
+
+  // Build pit daily haul rate map (only if locked today)
+  const pitHaulRates: Record<string, number> = {};
+  for (const pit of pits) {
+    if (pit.dailyHaulRateCents && pit.dailyHaulRateLockedAt && pit.dailyHaulRateLockedAt >= today) {
+      pitHaulRates[pit.id] = pit.dailyHaulRateCents;
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -64,11 +75,13 @@ export default async function NewHaulOrderPage() {
               state:   p.state,
               pitType: p.pitType,
             }))}
+            pitHaulRates={pitHaulRates}
             drivers={publicDrivers.map((d) => ({
-              id:            d.id,
-              name:          d.user.name ?? "Driver",
-              truckType:     d.truckType ?? "",
-              haulRateCents: d.haulRateCents ?? 0,
+              id:                  d.id,
+              name:                d.user.name ?? "Driver",
+              truckType:           d.truckType ?? "",
+              haulRateCents:       d.haulRateCents ?? 0,
+              liveLocationEnabled: d.liveLocationEnabled,
             }))}
             carriers={publicCarriers.map((c) => ({
               id:            c.id,
