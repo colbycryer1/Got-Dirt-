@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface Props {
   enabled: boolean;
@@ -8,26 +8,40 @@ interface Props {
   lng:     number | null;
 }
 
-function geoErrorMessage(err: GeolocationPositionError): string {
+function detectFirefox(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return navigator.userAgent.toLowerCase().includes("firefox");
+}
+
+function geoErrorMessage(err: GeolocationPositionError, isFirefox: boolean): string {
   switch (err.code) {
     case err.PERMISSION_DENIED:
-      return "Location access was denied. In Firefox: click the lock icon in the address bar → Clear Permission → then try again. In Chrome: click the lock icon → Site settings → Allow Location.";
+      return isFirefox
+        ? "Firefox blocked location access. To fix: click the lock icon (🔒) at the far left of the address bar → click the × next to Location → then tap Try Again below."
+        : "Location access was denied. Click the lock icon in the address bar → Site settings → Allow Location → then tap Try Again.";
     case err.POSITION_UNAVAILABLE:
       return "Your location could not be determined. Make sure GPS or location services are enabled on this device.";
     case err.TIMEOUT:
-      return "Location request timed out. Make sure you have a GPS signal or Wi-Fi enabled, then try again.";
+      return isFirefox
+        ? "Firefox timed out waiting for permission. Look for a location bar at the top of the browser and tap Allow, or tap Try Again."
+        : "Location request timed out. Please try again.";
     default:
       return "Location access failed. Please check your browser permissions and try again.";
   }
 }
 
 export default function LocationToggle({ enabled: initialEnabled, lat: initialLat, lng: initialLng }: Props) {
-  const [enabled,     setEnabled]     = useState(initialEnabled);
-  const [saving,      setSaving]      = useState(false);
-  const [error,       setError]       = useState("");
-  const [lastLat,     setLastLat]     = useState(initialLat);
-  const [lastLng,     setLastLng]     = useState(initialLng);
-  const [showConsent, setShowConsent] = useState(false);
+  const [enabled,          setEnabled]          = useState(initialEnabled);
+  const [saving,           setSaving]           = useState(false);
+  const [error,            setError]            = useState("");
+  const [lastLat,          setLastLat]          = useState(initialLat);
+  const [lastLng,          setLastLng]          = useState(initialLng);
+  const [showConsent,      setShowConsent]      = useState(false);
+  // Firefox-specific: show address-bar guidance while waiting for browser permission
+  const [waitingFirefox,   setWaitingFirefox]   = useState(false);
+  const [showFirefoxTip,   setShowFirefoxTip]   = useState(false); // "didn't see it?" hint
+  const isFirefox = detectFirefox();
+  const tipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Push position updates every 2 minutes while live
   useEffect(() => {
@@ -36,13 +50,12 @@ export default function LocationToggle({ enabled: initialEnabled, lat: initialLa
       if (!navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const { latitude, longitude } = pos.coords;
-          setLastLat(latitude);
-          setLastLng(longitude);
+          setLastLat(pos.coords.latitude);
+          setLastLng(pos.coords.longitude);
           fetch("/api/driver/location", {
-            method: "PATCH",
+            method:  "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ enabled: true, lat: latitude, lng: longitude }),
+            body:    JSON.stringify({ enabled: true, lat: pos.coords.latitude, lng: pos.coords.longitude }),
           }).catch(() => {});
         },
         () => {},
@@ -58,26 +71,41 @@ export default function LocationToggle({ enabled: initialEnabled, lat: initialLa
     setSaving(true);
     setError("");
 
-    // Check if already denied — catch browsers that don't support permissions API
+    // Check if already permanently denied
     try {
       const perm = await navigator.permissions.query({ name: "geolocation" as PermissionName });
       if (perm.state === "denied") {
-        setError("Location access is blocked. Click the lock icon in the address bar, clear the location permission, reload the page, and try again.");
+        setError(
+          isFirefox
+            ? "Firefox has location blocked for this site. Click the lock icon (🔒) in the address bar → click × next to Location → reload the page and try again."
+            : "Location is blocked. Click the lock icon in the address bar → Site settings → Allow Location → reload and try again."
+        );
         setSaving(false);
         return;
       }
     } catch {
-      // permissions API not supported — proceed directly
+      // permissions API not supported — proceed
+    }
+
+    // On Firefox, show address-bar guidance immediately since the prompt is very subtle
+    if (isFirefox) {
+      setWaitingFirefox(true);
+      setShowFirefoxTip(false);
+      if (tipTimerRef.current) clearTimeout(tipTimerRef.current);
+      tipTimerRef.current = setTimeout(() => setShowFirefoxTip(true), 6000);
     }
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
+        if (tipTimerRef.current) clearTimeout(tipTimerRef.current);
+        setWaitingFirefox(false);
+        setShowFirefoxTip(false);
         const { latitude, longitude } = pos.coords;
         try {
           const res = await fetch("/api/driver/location", {
-            method: "PATCH",
+            method:  "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ enabled: true, lat: latitude, lng: longitude }),
+            body:    JSON.stringify({ enabled: true, lat: latitude, lng: longitude }),
           });
           if (res.ok) { setEnabled(true); setLastLat(latitude); setLastLng(longitude); }
         } catch {
@@ -86,31 +114,33 @@ export default function LocationToggle({ enabled: initialEnabled, lat: initialLa
         setSaving(false);
       },
       (err) => {
-        setError(geoErrorMessage(err));
+        if (tipTimerRef.current) clearTimeout(tipTimerRef.current);
+        setWaitingFirefox(false);
+        setShowFirefoxTip(false);
+        setError(geoErrorMessage(err, isFirefox));
         setSaving(false);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
     );
   }
 
   async function toggle() {
     if (!enabled) {
       if (!navigator.geolocation) {
-        setError("Your browser does not support location sharing. Try Chrome, Firefox (with location allowed), or Safari.");
+        setError("Your browser does not support location sharing. Try Chrome, Firefox, or Safari.");
         return;
       }
       setError("");
       setShowConsent(true);
       return;
     }
-
     setSaving(true);
     setError("");
     try {
       const res = await fetch("/api/driver/location", {
-        method: "PATCH",
+        method:  "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: false }),
+        body:    JSON.stringify({ enabled: false }),
       });
       if (res.ok) { setEnabled(false); setLastLat(null); setLastLng(null); }
     } catch {
@@ -123,6 +153,11 @@ export default function LocationToggle({ enabled: initialEnabled, lat: initialLa
   function handleConsentAgree() {
     setShowConsent(false);
     enableWithPosition();
+  }
+
+  function retryFromError() {
+    setError("");
+    setShowConsent(true);
   }
 
   return (
@@ -143,11 +178,16 @@ export default function LocationToggle({ enabled: initialEnabled, lat: initialLa
               <li>Provide an independent load count for dispute resolution</li>
             </ul>
             <p className="text-sm text-gray-500">
-              Your location is only shared while this toggle is on. You can turn it off at any time.
+              Your location is only shared while this toggle is on. Turn it off any time.
             </p>
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800">
-              <strong>Firefox users:</strong> After tapping &ldquo;I Agree&rdquo;, Firefox will show a permission bar at the top of the page — tap <strong>Allow</strong> to share your location.
-            </div>
+            {isFirefox && (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 space-y-1">
+                <p className="text-xs font-bold text-orange-800">Firefox — important next step</p>
+                <p className="text-xs text-orange-700">
+                  After tapping &ldquo;I Agree&rdquo;, Firefox will show a <strong>small location bar near the top of your browser window</strong>. Tap <strong>Allow</strong> on that bar — it disappears quickly so watch for it.
+                </p>
+              </div>
+            )}
             <a href="/guidelines/location-tracking" className="text-xs text-amber-600 underline"
               target="_blank" rel="noopener noreferrer">
               View Location Data Guidelines →
@@ -166,6 +206,50 @@ export default function LocationToggle({ enabled: initialEnabled, lat: initialLa
         </div>
       )}
 
+      {/* Firefox waiting banner — shown while Firefox is prompting in the address bar */}
+      {waitingFirefox && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center pb-10 px-4 pointer-events-none">
+          <div className="bg-gray-900 text-white rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-3 pointer-events-auto">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl animate-bounce">☝️</span>
+              <div>
+                <p className="font-bold text-sm">Check the top of your browser</p>
+                <p className="text-xs text-gray-300 mt-0.5">
+                  Firefox is showing a <strong className="text-white">location permission bar</strong> near your address bar. Tap <strong className="text-green-400">Allow</strong> to continue.
+                </p>
+              </div>
+            </div>
+
+            {/* Visual arrow pointing up */}
+            <div className="flex items-center gap-2 bg-gray-800 rounded-xl px-3 py-2 text-xs text-gray-300">
+              <span>🔒</span>
+              <span className="flex-1">gotdirt.us</span>
+              <span className="bg-blue-600 text-white px-2 py-0.5 rounded font-bold text-xs">Allow</span>
+              <span className="text-gray-500 px-2">Block</span>
+            </div>
+            <p className="text-xs text-gray-400">This is what the Firefox prompt looks like — tap Allow on the real one above.</p>
+
+            {showFirefoxTip && (
+              <div className="border-t border-gray-700 pt-3 space-y-2">
+                <p className="text-xs text-gray-400">
+                  Don&apos;t see it? The bar may have timed out.
+                </p>
+                <button
+                  onClick={() => {
+                    setWaitingFirefox(false);
+                    setShowFirefoxTip(false);
+                    enableWithPosition();
+                  }}
+                  className="w-full py-2 bg-amber-500 text-white rounded-xl text-sm font-bold hover:bg-amber-600"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Toggle Card */}
       <div className={`rounded-2xl border p-5 transition-colors ${enabled ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}>
         <div className="flex items-center justify-between gap-4">
@@ -180,14 +264,23 @@ export default function LocationToggle({ enabled: initialEnabled, lat: initialLa
                 : "Enable to appear on the buyer map and unlock GPS load logging"}
             </p>
             {error && (
-              <div className="mt-2 space-y-1">
+              <div className="mt-2 space-y-2">
                 <p className="text-xs text-red-600">{error}</p>
-                {!enabled && (
-                  <button onClick={() => { setError(""); setShowConsent(true); }}
-                    className="text-xs text-amber-600 font-semibold underline">
-                    Try again →
-                  </button>
+                {isFirefox && error.includes("blocked") && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-xs text-orange-800 space-y-1">
+                    <p className="font-bold">Reset Firefox location permission:</p>
+                    <ol className="list-decimal pl-4 space-y-1">
+                      <li>Click the <strong>🔒 lock icon</strong> at the left of the address bar</li>
+                      <li>Find <strong>Location</strong> in the permissions list</li>
+                      <li>Click the <strong>× (X)</strong> next to it to clear the block</li>
+                      <li>Tap <strong>Try Again</strong> below — Firefox will ask again</li>
+                    </ol>
+                  </div>
                 )}
+                <button onClick={retryFromError}
+                  className="text-xs text-amber-600 font-semibold underline">
+                  Try Again →
+                </button>
               </div>
             )}
           </div>
