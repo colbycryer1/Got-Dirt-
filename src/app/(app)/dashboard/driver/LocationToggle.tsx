@@ -146,7 +146,7 @@ export default function LocationToggle({ enabled: initialEnabled, lat: initialLa
               Your location is only shared while this toggle is on. You can turn it off at any time.
             </p>
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800">
-              <strong>Firefox users:</strong> After tapping "I Agree", Firefox will show a permission bar at the top of the page — tap <strong>Allow</strong> to share your location.
+              <strong>Firefox users:</strong> After tapping &ldquo;I Agree&rdquo;, Firefox will show a permission bar at the top of the page — tap <strong>Allow</strong> to share your location.
             </div>
             <a href="/guidelines/location-tracking" className="text-xs text-amber-600 underline"
               target="_blank" rel="noopener noreferrer">
