@@ -17,7 +17,7 @@ export default async function BuyerDashboardPage() {
   const [user, projects, activeOrders, recentActivity, totalSpent, pendingHaulOrders] = await Promise.all([
     prisma.user.findUnique({
       where:  { id: session.user.id },
-      select: { name: true, company: true },
+      select: { name: true, company: true, defaultPaymentMethodId: true },
     }),
     prisma.project.findMany({
       where:   { buyerUserId: session.user.id },
@@ -104,6 +104,19 @@ export default async function BuyerDashboardPage() {
           {user?.company && <p className="text-gray-500 mt-0.5">{user.company}</p>}
         </div>
 
+        {/* Payment method warning */}
+        {!user?.defaultPaymentMethodId && (
+          <Link href="/dashboard/buyer/billing"
+            className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-2xl px-5 py-4 hover:border-amber-500 transition-colors">
+            <span className="text-2xl">⚠️</span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-800">No payment method on file</p>
+              <p className="text-xs text-amber-700 mt-0.5">Add a card so loads can be billed at end of day. Loads are tracked but not charged until a card is saved.</p>
+            </div>
+            <span className="ml-auto text-amber-700 text-sm font-semibold shrink-0">Add Card →</span>
+          </Link>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
@@ -127,6 +140,7 @@ export default async function BuyerDashboardPage() {
             { label: "Order History",   icon: "📋", href: "/dashboard/buyer/orders" },
             { label: "Invoices",        icon: "🧾", href: "/dashboard/buyer/invoices" },
             { label: "Saved Pits",      icon: "📌", href: "/dashboard/buyer/saved-pits" },
+            { label: "Billing",         icon: "💳", href: "/dashboard/buyer/billing" },
             { label: "My Account",      icon: "👤", href: "/dashboard/buyer/account" },
           ].map((item) => (
             <Link key={item.label} href={item.href}
