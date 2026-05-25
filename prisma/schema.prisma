@@ -778,6 +778,9 @@ model HaulOrder {
 
   notes String? @db.Text
 
+  pitOwnerApproved    Boolean?  // null=awaiting review, true=accepted, false=denied
+  pitOwnerRespondedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

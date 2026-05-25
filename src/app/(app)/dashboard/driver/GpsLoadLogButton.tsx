@@ -24,7 +24,8 @@ export default function GpsLoadLogButton({ locationEnabled, activeOrders }: Prop
   const [driverCount,   setDriverCount]   = useState<Record<string, number>>({});
   const [logging,       setLogging]       = useState(false);
   const [lastLogged,    setLastLogged]    = useState<string | null>(null);
-  const watchIdRef = useRef<number | null>(null);
+  const watchIdRef    = useRef<number | null>(null);
+  const heartbeatRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Watch GPS position when location is enabled
   useEffect(() => {
@@ -46,6 +47,35 @@ export default function GpsLoadLogButton({ locationEnabled, activeOrders }: Prop
       }
     };
   }, [locationEnabled]);
+
+  // Server heartbeat — push location to /api/driver/location every 30 seconds
+  useEffect(() => {
+    if (heartbeatRef.current !== null) {
+      clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
+    }
+
+    if (!locationEnabled || lat === null || lng === null) return;
+
+    const push = () => {
+      fetch("/api/driver/location", {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ enabled: true, lat, lng }),
+      }).catch(() => {});
+    };
+
+    // Push immediately, then every 30 seconds
+    push();
+    heartbeatRef.current = setInterval(push, 30_000);
+
+    return () => {
+      if (heartbeatRef.current !== null) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
+    };
+  }, [locationEnabled, lat, lng]);
 
   // Load initial driver counts for each active order
   useEffect(() => {
