@@ -18,7 +18,6 @@ export async function filterAvailableHaulers(
 
   const start    = new Date(scheduledDate.getTime() - OVERLAP_WINDOW_MS);
   const end      = new Date(scheduledDate.getTime() + OVERLAP_WINDOW_MS);
-  const idField  = haulerType === "driver" ? "driverId" : "carrierId";
 
   const whereHauler = haulerType === "driver"
     ? { driverId: { in: haulerIds } }
