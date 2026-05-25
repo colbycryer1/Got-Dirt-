@@ -89,7 +89,11 @@ export async function POST(req: NextRequest) {
   const pit = await prisma.pit.create({
     data: {
       ...data,
-      ownerId: session.user.role === UserRole.ADMIN ? (data as { ownerId?: string }).ownerId ?? session.user.id : session.user.id,
+      // Admin-created pits are platform-owned (null) so pit owners can claim them.
+      // An explicit ownerId in the body lets admin assign directly.
+      ownerId: session.user.role === UserRole.ADMIN
+        ? (data as { ownerId?: string }).ownerId ?? null
+        : session.user.id,
       status: PitStatus.ACTIVE,
     },
   });

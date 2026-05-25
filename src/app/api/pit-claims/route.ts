@@ -31,8 +31,13 @@ export async function GET(req: NextRequest) {
 
   const pits = await prisma.pit.findMany({
     where: {
-      ownerId: null,
-      status:  "ACTIVE",
+      // Include pits with no owner, OR pits created by an admin
+      // (older pits created before the ownerId:null default was added)
+      OR: [
+        { ownerId: null },
+        { owner: { role: "ADMIN" } },
+      ],
+      status: "ACTIVE",
       ...(state && { state }),
       ...searchWhere,
       // Coordinate bounding box: ±0.15° ≈ ~10 miles
@@ -70,7 +75,10 @@ export async function GET(req: NextRequest) {
 
   // For map mode, fetch the user's claims separately and merge
   const myClaimPitIds = await prisma.pitClaim.findMany({
-    where:  { claimantId: session.user.id, pit: { ownerId: null } },
+    where: {
+      claimantId: session.user.id,
+      pit: { OR: [{ ownerId: null }, { owner: { role: "ADMIN" } }] },
+    },
     select: { pitId: true, status: true },
   });
   const claimMap = new Map(myClaimPitIds.map((c) => [c.pitId, c.status]));
@@ -93,9 +101,15 @@ export async function POST(req: NextRequest) {
   const { pitId, message } = await req.json() as { pitId: string; message?: string };
   if (!pitId) return NextResponse.json({ error: "pitId required" }, { status: 400 });
 
-  const pit = await prisma.pit.findUnique({ where: { id: pitId } });
+  const pit = await prisma.pit.findUnique({
+    where: { id: pitId },
+    include: { owner: { select: { role: true } } },
+  });
   if (!pit) return NextResponse.json({ error: "Pit not found" }, { status: 404 });
-  if (pit.ownerId) return NextResponse.json({ error: "This pit already has an owner" }, { status: 409 });
+  // Block claims on pits owned by a non-admin (i.e., already claimed by another pit owner)
+  if (pit.ownerId && pit.owner?.role !== "ADMIN") {
+    return NextResponse.json({ error: "This pit already has an owner" }, { status: 409 });
+  }
 
   const existing = await prisma.pitClaim.findUnique({
     where: { pitId_claimantId: { pitId, claimantId: session.user.id } },
