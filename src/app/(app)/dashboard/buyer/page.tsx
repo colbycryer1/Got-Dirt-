@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import AvailableJobsFeed from "@/app/(app)/dashboard/driver/AvailableJobsFeed";
 
 export default async function BuyerDashboardPage() {
   const session = await getServerSession(authOptions);
@@ -234,6 +235,18 @@ export default async function BuyerDashboardPage() {
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Available broadcast jobs — carriers only */}
+        {role === "CARRIER" && (
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-lg font-bold text-gray-900">Available Jobs</h2>
+              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">Live</span>
+            </div>
+            <p className="text-xs text-gray-400 mb-3">Open broadcast haul jobs — first carrier to claim gets it.</p>
+            <AvailableJobsFeed />
           </div>
         )}
 
