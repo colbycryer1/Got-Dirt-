@@ -72,7 +72,7 @@ export default async function AdminRevenuePage() {
   const materialRevenue: Record<string, number> = {};
   for (const s of settlements) {
     const materials = s.order.loadEvents.map((e) => e.materialType);
-    const unique    = [...new Set(materials)];
+    const unique    = Array.from(new Set(materials));
     const perMat    = unique.length > 0 ? Math.round(s.commissionCents / unique.length) : 0;
     for (const m of unique) {
       materialRevenue[m] = (materialRevenue[m] ?? 0) + perMat;
@@ -98,7 +98,7 @@ export default async function AdminRevenuePage() {
       type:      s.order.pit?.pitType === "QUARRY" ? "PIT_QUARRY" : "PIT_PRIVATE",
       pitName:   s.order.pit?.name   ?? "—",
       pitState:  s.order.pit?.state  ?? "—",
-      materials: [...new Set(s.order.loadEvents.map((e) => e.materialType))],
+      materials: Array.from(new Set(s.order.loadEvents.map((e) => e.materialType))),
       buyer:     { name: s.order.buyer.name, company: s.order.buyer.company, email: s.order.buyer.email },
       hauler:    null,
       feeCents:  s.commissionCents,
