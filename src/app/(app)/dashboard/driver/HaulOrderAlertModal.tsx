@@ -40,7 +40,7 @@ export default function HaulOrderAlertModal() {
         const fresh = orders.filter((o) => !seenRef.current.has(o.id));
         if (!fresh.length) return;
         fresh.forEach((o) => seenRef.current.add(o.id));
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify([...seenRef.current]));
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(Array.from(seenRef.current)));
         setQueue((prev) => {
           const existing = new Set(prev.map((o) => o.id));
           return [...prev, ...fresh.filter((o) => !existing.has(o.id))];
