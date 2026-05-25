@@ -5,6 +5,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import LocationToggle from "./LocationToggle";
 import AvailableJobsFeed from "./AvailableJobsFeed";
+import HaulOrderAlertModal from "./HaulOrderAlertModal";
 import LogoutButton from "@/components/LogoutButton";
 
 export const metadata = { title: "Driver Dashboard — Got Dirt?" };
@@ -47,12 +48,15 @@ export default async function DriverDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <HaulOrderAlertModal />
       <nav className="bg-white border-b px-6 py-4 flex items-center justify-between">
         <Link href="/" className="font-black text-black text-xl">Got Dirt?</Link>
         <div className="flex items-center gap-4 flex-wrap">
-          <Link href="/dashboard/driver/profile" className="text-sm text-gray-500 hover:text-gray-800">My Profile</Link>
+          <Link href="/dashboard/driver/profile"     className="text-sm text-gray-500 hover:text-gray-800">My Profile</Link>
           <Link href="/dashboard/driver/haul-orders" className="text-sm text-gray-500 hover:text-gray-800">Haul Orders</Link>
-          <Link href="/dashboard/buyer/account" className="text-sm text-gray-500 hover:text-gray-800">Account</Link>
+          <Link href="/dashboard/driver/loads"       className="text-sm text-gray-500 hover:text-gray-800">My Loads</Link>
+          <Link href="/dashboard/driver/earnings"    className="text-sm text-gray-500 hover:text-gray-800">Earnings</Link>
+          <Link href="/dashboard/driver/banking"     className="text-sm text-gray-500 hover:text-gray-800">Banking</Link>
           <LogoutButton />
         </div>
       </nav>
@@ -189,6 +193,9 @@ export default async function DriverDashboard() {
           {[
             { label: "My Profile",  icon: "🪪", href: "/dashboard/driver/profile" },
             { label: "Haul Orders", icon: "📋", href: "/dashboard/driver/haul-orders" },
+            { label: "My Loads",    icon: "🚛", href: "/dashboard/driver/loads" },
+            { label: "Earnings",    icon: "💰", href: "/dashboard/driver/earnings" },
+            { label: "Banking",     icon: "🏦", href: "/dashboard/driver/banking" },
             { label: "My Account",  icon: "👤", href: "/dashboard/buyer/account" },
           ].map((item) => (
             <Link key={item.label} href={item.href}
