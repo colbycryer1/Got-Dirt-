@@ -14,6 +14,33 @@ interface ConnectStatus {
   requirementsDue?: string[];
 }
 
+const REQUIREMENT_LABELS: Record<string, string> = {
+  "individual.first_name":               "First name",
+  "individual.last_name":                "Last name",
+  "individual.dob.day":                  "Date of birth",
+  "individual.dob.month":                "Date of birth",
+  "individual.dob.year":                 "Date of birth",
+  "individual.ssn_last_4":               "Last 4 digits of SSN",
+  "individual.id_number":                "Social Security Number (full)",
+  "individual.address.line1":            "Home address",
+  "individual.address.city":             "City",
+  "individual.address.state":            "State",
+  "individual.address.postal_code":      "ZIP code",
+  "individual.email":                    "Email address",
+  "individual.phone":                    "Phone number",
+  "individual.verification.document":    "Government-issued photo ID (front)",
+  "individual.verification.additional_document": "Government-issued photo ID (back)",
+  "external_account":                    "Bank account (routing + account number)",
+  "tos_acceptance.date":                 "Accept Stripe Terms of Service",
+  "tos_acceptance.ip":                   "Accept Stripe Terms of Service",
+  "business_profile.mcc":                "Business category",
+  "business_profile.url":                "Business website",
+};
+
+function friendlyRequirement(code: string): string {
+  return REQUIREMENT_LABELS[code] ?? code.replace(/_/g, " ").replace(/\./g, " › ");
+}
+
 function StripeConnectInner() {
   const { status } = useSession();
   const router = useRouter();
@@ -114,14 +141,14 @@ function StripeConnectInner() {
 
           {hasPendingRequirements && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-              <p className="text-xs font-semibold text-amber-800 mb-1">Outstanding Requirements</p>
+              <p className="text-xs font-semibold text-amber-800 mb-1">Action Required — click &quot;Continue Onboarding&quot; to complete:</p>
               <ul className="text-xs text-amber-700 space-y-0.5 list-disc list-inside">
-                {connectStatus!.requirementsDue!.map((r) => <li key={r}>{r}</li>)}
+                {connectStatus!.requirementsDue!.map((r) => <li key={r}>{friendlyRequirement(r)}</li>)}
               </ul>
             </div>
           )}
 
-          <div className="pt-2">
+          <div className="pt-2 space-y-2">
             {isOnboarded && !hasPendingRequirements ? (
               <button
                 onClick={startOnboarding}
@@ -137,6 +164,15 @@ function StripeConnectInner() {
                 className="w-full bg-amber-600 text-white font-semibold py-3 rounded-xl hover:bg-amber-700 disabled:opacity-50 transition-colors"
               >
                 {connecting ? "Redirecting…" : connectStatus?.stripeAccountId ? "Continue Onboarding" : "Connect Bank Account"}
+              </button>
+            )}
+            {connectStatus?.stripeAccountId && (
+              <button
+                onClick={fetchStatus}
+                disabled={loading}
+                className="w-full text-xs text-gray-400 py-1.5 hover:text-gray-600 transition-colors disabled:opacity-50"
+              >
+                {loading ? "Checking…" : "↻ Refresh status"}
               </button>
             )}
           </div>
