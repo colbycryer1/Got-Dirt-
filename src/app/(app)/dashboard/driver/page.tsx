@@ -43,15 +43,6 @@ export default async function DriverDashboard() {
   const confirmedOrders = haulOrders.filter((o) => o.status === "CONFIRMED");
   const activeOrders    = haulOrders.filter((o) => o.status === "ACTIVE");
 
-  const statusColors: Record<string, string> = {
-    PENDING:   "bg-amber-100 text-amber-700",
-    CONFIRMED: "bg-green-100 text-green-700",
-    DENIED:    "bg-red-100 text-red-600",
-    ACTIVE:    "bg-blue-100 text-blue-700",
-    COMPLETED: "bg-gray-100 text-gray-500",
-    CANCELLED: "bg-gray-100 text-gray-400",
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center justify-between">

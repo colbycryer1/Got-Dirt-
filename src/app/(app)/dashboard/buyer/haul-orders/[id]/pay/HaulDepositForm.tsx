@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
 function DepositInner({ orderId }: { orderId: string }) {
   const stripe   = useStripe();
   const elements = useElements();
-  const router   = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState("");
 

@@ -12,10 +12,7 @@ export default async function DriverProfilePage() {
   if (!session) redirect("/login");
   if (session.user.role !== "DRIVER" && session.user.role !== "ADMIN") redirect("/dashboard");
 
-  const [user, profile] = await Promise.all([
-    prisma.user.findUnique({ where: { id: session.user.id }, select: { name: true, email: true } }),
-    prisma.driverProfile.findUnique({ where: { userId: session.user.id } }),
-  ]);
+  const profile = await prisma.driverProfile.findUnique({ where: { userId: session.user.id } });
 
   return (
     <div className="min-h-screen bg-gray-50">
