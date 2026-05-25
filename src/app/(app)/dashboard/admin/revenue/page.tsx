@@ -10,12 +10,6 @@ function fmt(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
-function pitTypeLabel(t: string) {
-  if (t === "QUARRY") return "Quarry";
-  if (t === "PRIVATE_BORROW_PIT") return "Private Pit";
-  return t.replace(/_/g, " ");
-}
-
 export default async function AdminRevenuePage() {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") redirect("/dashboard");
