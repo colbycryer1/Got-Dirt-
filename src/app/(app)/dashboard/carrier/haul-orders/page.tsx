@@ -5,6 +5,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import RespondForm from "@/app/(app)/dashboard/driver/haul-orders/RespondForm";
 import AmendmentRespondForm from "@/app/(app)/dashboard/driver/haul-orders/AmendmentRespondForm";
+import { getHaulOrderLoadLogCounts } from "@/lib/haul-load-log";
 
 export const metadata = { title: "Haul Orders — Got Dirt?" };
 
@@ -40,6 +41,18 @@ export default async function CarrierHaulOrdersPage({
     orderBy: [{ status: "asc" }, { scheduledDate: "asc" }],
   });
 
+  const liveOrders = orders.filter(
+    (o) => o.pitId && (o.status === "CONFIRMED" || o.status === "ACTIVE")
+  );
+  const loadLogCounts = await getHaulOrderLoadLogCounts(
+    liveOrders.map((o) => ({
+      id:            o.id,
+      pitId:         o.pitId,
+      buyerUserId:   o.buyerUserId,
+      scheduledDate: o.scheduledDate,
+    }))
+  );
+
   const respondOrderId = searchParams.respond;
 
   return (
@@ -65,7 +78,10 @@ export default async function CarrierHaulOrdersPage({
         ) : (
           <div className="space-y-4">
             {orders.map((o) => {
-              const isResponding = respondOrderId === o.id;
+              const isResponding   = respondOrderId === o.id;
+              const logCount       = loadLogCounts[o.id];
+              const hasLiveCount   = logCount !== undefined;
+              const payoutEstimate = o.haulerPayoutCents > 0 ? o.haulerPayoutCents : o.loads * o.haulRateCents * 0.9;
               return (
                 <div
                   key={o.id}
@@ -97,14 +113,43 @@ export default async function CarrierHaulOrdersPage({
                       )}
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-lg font-bold text-gray-900">
-                        ${((o.haulRateCents * o.loads) / 100).toFixed(2)}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        {o.loads} load{o.loads !== 1 ? "s" : ""} @ ${(o.haulRateCents / 100).toFixed(2)}
-                      </p>
+                      {hasLiveCount ? (
+                        <>
+                          <p className="text-lg font-bold text-gray-900">
+                            {logCount} load{logCount !== 1 ? "s" : ""}
+                          </p>
+                          <p className="text-xs text-blue-600 font-semibold">Live from Load Log</p>
+                          {logCount !== o.loads && (
+                            <p className="text-xs text-gray-400 line-through">{o.loads} est.</p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-lg font-bold text-gray-900">{o.loads} load{o.loads !== 1 ? "s" : ""}</p>
+                          <p className="text-xs text-gray-400">est. @ ${(o.haulRateCents / 100).toFixed(2)}</p>
+                        </>
+                      )}
+                      {o.status === "COMPLETED" && o.actualLoads != null ? (
+                        <p className="text-sm font-bold text-green-700">
+                          ${(o.haulerPayoutCents / 100).toFixed(2)} earned
+                        </p>
+                      ) : (
+                        <p className="text-xs text-gray-400">
+                          ~${(payoutEstimate / 100).toFixed(2)} payout
+                        </p>
+                      )}
                     </div>
                   </div>
+
+                  {/* Live load log detail for confirmed/active */}
+                  {hasLiveCount && o.pit && (
+                    <div className={`rounded-xl px-4 py-2.5 text-xs flex items-center gap-2 ${logCount > 0 ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-500"}`}>
+                      <span className={`inline-block w-2 h-2 rounded-full ${logCount > 0 ? "bg-blue-500 animate-pulse" : "bg-gray-300"}`} />
+                      {logCount > 0
+                        ? `${logCount} load${logCount !== 1 ? "s" : ""} logged at ${o.pit.name} — your count updates as the pit operator logs`
+                        : `No loads logged yet at ${o.pit.name}. Count updates automatically as the pit operator records loads.`}
+                    </div>
+                  )}
 
                   {o.notes && (
                     <div className="bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-600">{o.notes}</div>
