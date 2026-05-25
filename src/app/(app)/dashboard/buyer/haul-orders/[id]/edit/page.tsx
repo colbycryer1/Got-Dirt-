@@ -53,7 +53,6 @@ export default async function EditHaulOrderPage({ params }: { params: { id: stri
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <EditHaulOrderForm
             orderId={order.id}
-            status={order.status}
             scheduledDate={order.scheduledDate.toISOString()}
             loads={order.loads}
             notes={order.notes}

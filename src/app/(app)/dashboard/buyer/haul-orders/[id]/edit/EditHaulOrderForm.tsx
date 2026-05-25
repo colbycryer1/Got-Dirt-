@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 
 interface Props {
   orderId:       string;
-  status:        string;
   scheduledDate: string; // ISO string
   loads:         number;
   notes:         string | null;
@@ -13,7 +12,7 @@ interface Props {
   isConfirmed:   boolean;
 }
 
-export default function EditHaulOrderForm({ orderId, status, scheduledDate, loads, notes, haulRateCents, isConfirmed }: Props) {
+export default function EditHaulOrderForm({ orderId, scheduledDate, loads, notes, haulRateCents, isConfirmed }: Props) {
   const router = useRouter();
 
   const toLocal = (iso: string) => {
