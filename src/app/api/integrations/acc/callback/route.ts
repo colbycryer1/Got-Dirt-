@@ -9,14 +9,14 @@ export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id)
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/buyer/settings?error=unauthenticated`
+      `${(process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "")}/dashboard/buyer/settings?error=unauthenticated`
     );
 
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
   if (!code)
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/buyer/settings?error=no_code`
+      `${(process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "")}/dashboard/buyer/settings?error=no_code`
     );
 
   try {
@@ -50,12 +50,12 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/buyer/settings?connected=acc`
+      `${(process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "")}/dashboard/buyer/settings?connected=acc`
     );
   } catch (err) {
     console.error("[acc/callback]", err);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/buyer/settings?error=acc_failed`
+      `${(process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "")}/dashboard/buyer/settings?error=acc_failed`
     );
   }
 }
