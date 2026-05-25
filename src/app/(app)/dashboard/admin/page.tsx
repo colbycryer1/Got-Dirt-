@@ -21,10 +21,8 @@ export default async function AdminDashboard() {
     prisma.loadEvent.count({ where: { verified: true, disputed: false } }),
   ]);
 
-  const totalSettlements  = settlementStats._count._all;
-  const grossRevenue      = settlementStats._sum.grossAmountCents  ?? 0;
-  const platformRevenue   = settlementStats._sum.commissionCents   ?? 0;
-  const totalLoadsCharged = settlementStats._sum.verifiedLoadCount ?? 0;
+  const grossRevenue    = settlementStats._sum.grossAmountCents  ?? 0;
+  const platformRevenue = settlementStats._sum.commissionCents   ?? 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
