@@ -28,7 +28,12 @@ export default async function PitOwnerEditPitPage({ params }: { params: { id: st
     longitude: String(pit.longitude),
     pitType: pit.pitType as PitType,
     accepting: pit.accepting,
-    dumpRateDollars: pit.dumpRateCents ? String(pit.dumpRateCents / 100) : "",
+    // Prefer dumpRateCents; fall back to borrowRateCents for pits configured before the form was unified
+    dumpRateDollars: pit.dumpRateCents
+      ? String(pit.dumpRateCents / 100)
+      : pit.borrowRateCents
+        ? String(pit.borrowRateCents / 100)
+        : "",
     borrowRateDollars: pit.borrowRateCents ? String(pit.borrowRateCents / 100) : "",
     hasTopsoil: pit.hasTopsoil,
     topsoilRateDollars: pit.topsoilRateCents ? String(pit.topsoilRateCents / 100) : "",
