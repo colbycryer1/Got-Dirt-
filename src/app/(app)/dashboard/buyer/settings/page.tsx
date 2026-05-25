@@ -114,7 +114,6 @@ export default async function BuyerSettingsPage() {
         </div>
       )}
     </div>
-      </div>
     </div>
   );
 }
