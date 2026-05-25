@@ -21,14 +21,15 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 
   const claim = await prisma.pitClaim.findUnique({
     where: { id: params.id },
-    include: { pit: { select: { ownerId: true } } },
+    include: { pit: { select: { ownerId: true, owner: { select: { role: true } } } } },
   });
   if (!claim) return NextResponse.json({ error: "Claim not found" }, { status: 404 });
   if (claim.status !== "PENDING")
     return NextResponse.json({ error: "Claim already reviewed" }, { status: 409 });
 
   if (action === "approve") {
-    if (claim.pit.ownerId)
+    // Block only if the pit is already owned by a non-admin (i.e., another pit owner claimed it)
+    if (claim.pit.ownerId && claim.pit.owner?.role !== "ADMIN")
       return NextResponse.json({ error: "Pit already has an owner" }, { status: 409 });
 
     // Assign pit to claimant and approve claim in a transaction
