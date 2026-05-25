@@ -10,17 +10,21 @@ export default async function AdminDashboard() {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") redirect("/dashboard");
 
-  const [pitCount, userCount, totalTransactions, platformRevenue] = await Promise.all([
+  const [pitCount, userCount, settlementStats, loadCount] = await Promise.all([
     prisma.pit.count({ where: { status: "ACTIVE" } }),
     prisma.user.count(),
-    prisma.transaction.count({ where: { status: "SUCCEEDED" } }),
-    prisma.transaction.aggregate({
-      where: { status: "SUCCEEDED" },
-      _sum: { platformFeeCents: true },
+    prisma.settlement.aggregate({
+      where: { status: "PROCESSED" },
+      _sum:   { grossAmountCents: true, commissionCents: true, netToPitCents: true, verifiedLoadCount: true },
+      _count: { _all: true },
     }),
+    prisma.loadEvent.count({ where: { verified: true, disputed: false } }),
   ]);
 
-  const revenueTotal = platformRevenue._sum.platformFeeCents ?? 0;
+  const totalSettlements  = settlementStats._count._all;
+  const grossRevenue      = settlementStats._sum.grossAmountCents  ?? 0;
+  const platformRevenue   = settlementStats._sum.commissionCents   ?? 0;
+  const totalLoadsCharged = settlementStats._sum.verifiedLoadCount ?? 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -36,18 +40,34 @@ export default async function AdminDashboard() {
         <h1 className="text-2xl font-bold text-gray-900 mb-8">Admin Dashboard</h1>
 
         {/* KPIs */}
-        <div className="grid sm:grid-cols-4 gap-4 mb-10">
+        <div className="grid sm:grid-cols-4 gap-4 mb-6">
           {[
-            { label: "Active Pits", value: pitCount, color: "text-amber-700" },
-            { label: "Users", value: userCount, color: "text-blue-700" },
-            { label: "Transactions", value: totalTransactions, color: "text-purple-700" },
-            { label: "Platform Revenue", value: centsToDisplay(revenueTotal), color: "text-orange-700" },
+            { label: "Active Pits",       value: pitCount,                          color: "text-amber-700",  href: "/dashboard/admin/pits" },
+            { label: "Users",             value: userCount,                          color: "text-blue-700",   href: "/dashboard/admin/users" },
+            { label: "Total Loads Logged",value: loadCount,                          color: "text-purple-700", href: "/dashboard/admin/transactions" },
+            { label: "Platform Revenue",  value: centsToDisplay(platformRevenue),    color: "text-green-700",  href: "/dashboard/admin/transactions" },
           ].map((kpi) => (
-            <div key={kpi.label} className="bg-white rounded-2xl border border-gray-200 p-5">
+            <Link key={kpi.label} href={kpi.href} className="bg-white rounded-2xl border border-gray-200 p-5 hover:border-amber-400 transition-colors">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{kpi.label}</p>
               <p className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</p>
-            </div>
+            </Link>
           ))}
+        </div>
+
+        {/* Revenue summary row */}
+        <div className="grid sm:grid-cols-3 gap-4 mb-10">
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 text-center">
+            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Gross Processed</p>
+            <p className="text-xl font-bold text-gray-900">{centsToDisplay(grossRevenue)}</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 text-center">
+            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Platform Revenue (8%)</p>
+            <p className="text-xl font-bold text-green-700">{centsToDisplay(platformRevenue)}</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 text-center">
+            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Paid to Pit Owners</p>
+            <p className="text-xl font-bold text-gray-900">{centsToDisplay(settlementStats._sum.netToPitCents ?? 0)}</p>
+          </div>
         </div>
 
         {/* Quick actions */}
@@ -62,7 +82,8 @@ export default async function AdminDashboard() {
             { href: "/dashboard/admin/kyc", icon: "🔐", title: "KYC Status", desc: "Pit owner Stripe verification status" },
             { href: "/dashboard/admin/aml", icon: "🚨", title: "AML Flags", desc: "Anti-money laundering review queue" },
             { href: "/dashboard/admin/claims", icon: "🏷️", title: "Pit Claims", desc: "Owners claiming admin-uploaded pits" },
-            { href: "/dashboard/admin/settlements", icon: "💰", title: "Settlements", desc: "COB settlement log and revenue" },
+            { href: "/dashboard/admin/transactions", icon: "💳", title: "Transactions", desc: "All charges, loads, and platform revenue" },
+            { href: "/dashboard/admin/settlements",  icon: "💰", title: "Settlements",  desc: "COB settlement log and revenue" },
             { href: "/dashboard/admin/disputes", icon: "🚩", title: "Disputes", desc: "Disputed loads pending review" },
             { href: "/dashboard/admin/net-terms", icon: "📄", title: "Net Terms", desc: "Assign payment terms and view invoices" },
             { href: "/dashboard/admin/net-terms/exposure", icon: "📊", title: "Exposure", desc: "Cash flow exposure and receivables" },
