@@ -43,7 +43,7 @@ export default async function AdminDashboard() {
             { label: "Active Pits",       value: pitCount,                          color: "text-amber-700",  href: "/dashboard/admin/pits" },
             { label: "Users",             value: userCount,                          color: "text-blue-700",   href: "/dashboard/admin/users" },
             { label: "Total Loads Logged",value: loadCount,                          color: "text-purple-700", href: "/dashboard/admin/transactions" },
-            { label: "Platform Revenue",  value: centsToDisplay(platformRevenue),    color: "text-green-700",  href: "/dashboard/admin/transactions" },
+            { label: "Platform Revenue",  value: centsToDisplay(platformRevenue),    color: "text-green-700",  href: "/dashboard/admin/revenue" },
           ].map((kpi) => (
             <Link key={kpi.label} href={kpi.href} className="bg-white rounded-2xl border border-gray-200 p-5 hover:border-amber-400 transition-colors">
               <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{kpi.label}</p>
@@ -80,6 +80,7 @@ export default async function AdminDashboard() {
             { href: "/dashboard/admin/kyc", icon: "🔐", title: "KYC Status", desc: "Pit owner Stripe verification status" },
             { href: "/dashboard/admin/aml", icon: "🚨", title: "AML Flags", desc: "Anti-money laundering review queue" },
             { href: "/dashboard/admin/claims", icon: "🏷️", title: "Pit Claims", desc: "Owners claiming admin-uploaded pits" },
+            { href: "/dashboard/admin/revenue",      icon: "📈", title: "Revenue Tracker", desc: "Platform fees by pit, haul, driver, carrier, and material" },
             { href: "/dashboard/admin/transactions", icon: "💳", title: "Transactions", desc: "All charges, loads, and platform revenue" },
             { href: "/dashboard/admin/settlements",  icon: "💰", title: "Settlements",  desc: "COB settlement log and revenue" },
             { href: "/dashboard/admin/disputes", icon: "🚩", title: "Disputes", desc: "Disputed loads pending review" },

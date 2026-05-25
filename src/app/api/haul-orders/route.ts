@@ -81,10 +81,13 @@ export async function POST(req: Request) {
   const parsed = createSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const buyer = await prisma.user.findUnique({
-    where:  { id: session.user.id },
-    select: { name: true, company: true, email: true, stripeCustomerId: true },
-  });
+  const [buyer, platformSettings] = await Promise.all([
+    prisma.user.findUnique({
+      where:  { id: session.user.id },
+      select: { name: true, company: true, email: true, stripeCustomerId: true },
+    }),
+    prisma.platformSettings.findUnique({ where: { id: "singleton" } }),
+  ]);
 
   let customerId = buyer?.stripeCustomerId;
   if (!customerId && parsed.data.depositHoldCents > 0) {
@@ -98,12 +101,19 @@ export async function POST(req: Request) {
 
   const { broadcast, ...orderData } = parsed.data;
 
+  const haulFeePercent   = platformSettings?.haulFeePercent ?? 10.0;
+  const platformFeeCents = Math.round(orderData.totalEstimatedCents * haulFeePercent / 100);
+  const haulerPayoutCents = orderData.totalEstimatedCents - platformFeeCents;
+
   const order = await prisma.haulOrder.create({
     data: {
       buyerUserId:  session.user.id,
       ...orderData,
-      scheduledDate: new Date(orderData.scheduledDate),
-      expiresAt:     orderData.expiresAt ? new Date(orderData.expiresAt) : undefined,
+      scheduledDate:      new Date(orderData.scheduledDate),
+      expiresAt:          orderData.expiresAt ? new Date(orderData.expiresAt) : undefined,
+      platformFeePercent: haulFeePercent,
+      platformFeeCents,
+      haulerPayoutCents,
     },
   });
 
