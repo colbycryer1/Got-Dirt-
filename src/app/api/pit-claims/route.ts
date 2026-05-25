@@ -10,34 +10,77 @@ export async function GET(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const search = searchParams.get("search") ?? "";
-  const state  = searchParams.get("state") ?? "";
+  const search   = searchParams.get("search")?.trim() ?? "";
+  const state    = searchParams.get("state") ?? "";
+  const forMap   = searchParams.get("forMap") === "true";
+  const nearLat  = parseFloat(searchParams.get("nearLat") ?? "");
+  const nearLng  = parseFloat(searchParams.get("nearLng") ?? "");
+  const hasCoords = !isNaN(nearLat) && !isNaN(nearLng);
 
-  // Unclaimed pits = ownerId is null, imported from KMZ
+  // Build search conditions
+  const searchWhere = search
+    ? {
+        OR: [
+          { name:    { contains: search, mode: "insensitive" as const } },
+          { address: { contains: search, mode: "insensitive" as const } },
+          { state:   { contains: search, mode: "insensitive" as const } },
+          { notes:   { contains: search, mode: "insensitive" as const } },
+        ],
+      }
+    : {};
+
   const pits = await prisma.pit.findMany({
     where: {
       ownerId: null,
       status:  "ACTIVE",
-      ...(state  && { state }),
-      ...(search && {
-        OR: [
-          { name:    { contains: search, mode: "insensitive" } },
-          { address: { contains: search, mode: "insensitive" } },
-        ],
+      ...(state && { state }),
+      ...searchWhere,
+      // Coordinate bounding box: ±0.15° ≈ ~10 miles
+      ...(hasCoords && !search && {
+        latitude:  { gte: nearLat - 0.15, lte: nearLat + 0.15 },
+        longitude: { gte: nearLng - 0.15, lte: nearLng + 0.15 },
       }),
     },
-    include: {
-      pitClaims: {
-        where: { claimantId: session.user.id },
-        select: { id: true, status: true },
-        take: 1,
-      },
+    select: {
+      id:        true,
+      name:      true,
+      address:   true,
+      state:     true,
+      pitType:   true,
+      accepting: true,
+      latitude:  true,
+      longitude: true,
+      // Only include claims for map mode if needed
+      ...(forMap ? {} : {
+        pitClaims: {
+          where:  { claimantId: session.user.id },
+          select: { id: true, status: true },
+          take:   1,
+        },
+      }),
     },
     orderBy: { name: "asc" },
-    take: 50,
+    take:    forMap ? 500 : 50,
   });
 
-  return NextResponse.json({ pits });
+  // For non-map mode, fill in pitClaims on each result
+  if (!forMap) {
+    return NextResponse.json({ pits });
+  }
+
+  // For map mode, fetch the user's claims separately and merge
+  const myClaimPitIds = await prisma.pitClaim.findMany({
+    where:  { claimantId: session.user.id, pit: { ownerId: null } },
+    select: { pitId: true, status: true },
+  });
+  const claimMap = new Map(myClaimPitIds.map((c) => [c.pitId, c.status]));
+
+  const enriched = pits.map((p) => ({
+    ...p,
+    myClaimStatus: claimMap.get(p.id) ?? null,
+  }));
+
+  return NextResponse.json({ pits: enriched });
 }
 
 export async function POST(req: NextRequest) {
