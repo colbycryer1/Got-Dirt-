@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { centsToDisplay } from "@/types";
+import LogoutButton from "@/components/LogoutButton";
 
 export default async function AdminDashboard() {
   const session = await getServerSession(authOptions);
@@ -25,7 +26,10 @@ export default async function AdminDashboard() {
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center justify-between">
         <span className="font-black text-black text-xl">Got Dirt?</span>
-        <Link href="/map" className="text-sm text-gray-500 hover:text-gray-800">View Map</Link>
+        <div className="flex items-center gap-4">
+          <Link href="/map" className="text-sm text-gray-500 hover:text-gray-800">View Map</Link>
+          <LogoutButton />
+        </div>
       </nav>
 
       <div className="max-w-5xl mx-auto px-6 py-10">

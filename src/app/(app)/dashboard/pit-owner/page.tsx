@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { centsToDisplay } from "@/types";
+import LogoutButton from "@/components/LogoutButton";
 
 export default async function PitOwnerDashboard() {
   const session = await getServerSession(authOptions);
@@ -48,9 +49,12 @@ export default async function PitOwnerDashboard() {
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center justify-between">
         <Link href="/" className="font-black text-black text-xl">Got Dirt?</Link>
-        <Link href="/operator" className="bg-amber-600 text-white px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-amber-700">
-          LOG LOADS →
-        </Link>
+        <div className="flex items-center gap-4">
+          <LogoutButton />
+          <Link href="/operator" className="bg-amber-600 text-white px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-amber-700">
+            LOG LOADS →
+          </Link>
+        </div>
       </nav>
 
       <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">

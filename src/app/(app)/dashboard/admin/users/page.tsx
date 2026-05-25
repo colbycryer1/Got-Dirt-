@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { UserRole } from "@prisma/client";
+import DeleteUserButton from "./DeleteUserButton";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN:      "Admin",
@@ -67,7 +68,7 @@ export default async function AdminUsersPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {["Name / Email", "Role", "Company", "Activity", "Stripe", "Joined"].map((h) => (
+                {["Name / Email", "Role", "Company", "Activity", "Stripe", "Joined", ""].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
                     {h}
                   </th>
@@ -112,6 +113,9 @@ export default async function AdminUsersPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
                     {new Date(u.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <DeleteUserButton userId={u.id} userName={u.name} />
                   </td>
                 </tr>
               ))}

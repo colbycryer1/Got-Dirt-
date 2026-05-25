@@ -5,6 +5,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import LocationToggle from "./LocationToggle";
 import AvailableJobsFeed from "./AvailableJobsFeed";
+import LogoutButton from "@/components/LogoutButton";
 
 export const metadata = { title: "Driver Dashboard — Got Dirt?" };
 
@@ -52,6 +53,7 @@ export default async function DriverDashboard() {
           <Link href="/dashboard/driver/profile" className="text-sm text-gray-500 hover:text-gray-800">My Profile</Link>
           <Link href="/dashboard/driver/haul-orders" className="text-sm text-gray-500 hover:text-gray-800">Haul Orders</Link>
           <Link href="/dashboard/buyer/account" className="text-sm text-gray-500 hover:text-gray-800">Account</Link>
+          <LogoutButton />
         </div>
       </nav>
 

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import AvailableJobsFeed from "@/app/(app)/dashboard/driver/AvailableJobsFeed";
+import LogoutButton from "@/components/LogoutButton";
 
 export default async function BuyerDashboardPage() {
   const session = await getServerSession(authOptions);
@@ -88,6 +89,7 @@ export default async function BuyerDashboardPage() {
             <Link href="/dashboard/buyer/settings" className="text-sm text-gray-500 hover:text-gray-800">Integrations</Link>
           )}
           <Link href="/dashboard/buyer/account" className="text-sm text-gray-500 hover:text-gray-800">Account</Link>
+          <LogoutButton />
           <Link href="/map" className="bg-amber-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-amber-700">
             Find Pits →
           </Link>
