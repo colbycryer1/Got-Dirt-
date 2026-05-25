@@ -24,7 +24,7 @@ export async function GET() {
   });
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (session.user.role !== UserRole.PIT_OWNER && session.user.role !== UserRole.ADMIN) {
@@ -48,7 +48,7 @@ export async function POST() {
     });
   }
 
-  const appUrl = (process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const appUrl = new URL(req.url).origin;
   const accountLink = await stripe.accountLinks.create({
     account: accountId,
     refresh_url: `${appUrl}/account/stripe?refresh=true`,
