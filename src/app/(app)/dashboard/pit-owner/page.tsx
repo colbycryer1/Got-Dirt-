@@ -86,6 +86,7 @@ export default async function PitOwnerDashboard() {
             { href: "/dashboard/pit-owner/geofence",      icon: "📍",  label: "Geofence Map" },
             { href: "/dashboard/pit-owner/claim",         icon: "🏷️",  label: "Claim a Pit" },
             { href: "/account/stripe",                    icon: "🏦",  label: "Stripe Payouts" },
+            { href: "/dashboard/pit-owner/account",       icon: "👤",  label: "Account" },
           ].map((item) => (
             <Link
               key={item.href}
