@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import RespondForm from "./RespondForm";
+import AmendmentRespondForm from "./AmendmentRespondForm";
 
 export const metadata = { title: "Haul Orders — Got Dirt?" };
 
@@ -27,6 +28,10 @@ export default async function DriverHaulOrdersPage({ searchParams }: { searchPar
       buyer:   { select: { name: true, company: true, phone: true, email: true } },
       pit:     { select: { name: true, address: true, state: true } },
       project: { select: { name: true } },
+      amendments: {
+        where: { status: "PENDING", haulerApproved: null },
+        take:  1,
+      },
     },
     orderBy: [{ status: "asc" }, { scheduledDate: "asc" }],
   });
@@ -112,6 +117,16 @@ export default async function DriverHaulOrdersPage({ searchParams }: { searchPar
                           </Link>
                         </div>
                       )
+                  )}
+
+                  {/* Amendment response — hauler hasn't responded yet */}
+                  {o.amendments.length > 0 && (
+                    <div className="pt-3 border-t border-amber-100">
+                      <AmendmentRespondForm
+                        orderId={o.id}
+                        amendment={o.amendments[0]}
+                      />
+                    </div>
                   )}
                 </div>
               );

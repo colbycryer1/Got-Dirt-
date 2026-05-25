@@ -33,6 +33,12 @@ export default async function BuyerHaulOrdersPage() {
         carrier: { include: { user: { select: { name: true, phone: true } } } },
         pit:     { select: { name: true, state: true } },
         project: { select: { name: true } },
+        amendments: {
+          where:   { status: { in: ["PENDING", "APPROVED"] } },
+          orderBy: { createdAt: "desc" },
+          take:    1,
+          select:  { status: true, requestedLoads: true, haulerApproved: true, pitOwnerApproved: true },
+        },
       },
       orderBy: [{ status: "asc" }, { scheduledDate: "asc" }],
     }),
@@ -127,6 +133,7 @@ interface PlacedOrder {
   id: string;
   status: string;
   scheduledDate: Date;
+  createdAt: Date;
   loads: number;
   actualLoads: number | null;
   haulRateCents: number;
@@ -138,6 +145,12 @@ interface PlacedOrder {
   carrier: { companyName: string | null; user: { name: string | null; phone: string | null } } | null;
   pit:     { name: string; state: string } | null;
   project: { name: string } | null;
+  amendments: Array<{
+    status: string;
+    requestedLoads: number;
+    haulerApproved: boolean | null;
+    pitOwnerApproved: boolean | null;
+  }>;
 }
 
 interface IncomingOrder {
@@ -206,11 +219,28 @@ function PlacedOrderRow({ order, statusColors }: { order: PlacedOrder; statusCol
         </div>
       </div>
       {canComplete && (
-        <div className="mt-4 pt-3 border-t border-gray-100">
+        <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
+          {/* Amendment status badge */}
+          {order.amendments.length > 0 && order.amendments[0].status === "PENDING" && (
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+              <span className="text-xs font-semibold text-amber-700">
+                Amendment Pending — {order.amendments[0].requestedLoads} loads requested
+              </span>
+            </div>
+          )}
+          {order.amendments.length > 0 && order.amendments[0].status === "APPROVED" && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-green-700">
+                ✓ Amendment Approved — {order.amendments[0].requestedLoads} loads
+              </span>
+            </div>
+          )}
           <CompleteHaulButton
             orderId={order.id}
             estimatedLoads={order.loads}
             haulRateCents={order.haulRateCents}
+            createdAt={order.createdAt.toISOString()}
           />
         </div>
       )}
