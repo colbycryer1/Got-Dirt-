@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
           dumpRateCents: true,
           borrowRateCents: true,
           topsoilRateCents: true,
+          materialRatesCents: true,
           materialTypes: true,
         },
       },
@@ -103,13 +104,23 @@ export async function DELETE(req: NextRequest) {
 
 function resolveRate(
   materialType: string,
-  pit: { dumpRateCents: number | null; borrowRateCents: number | null; topsoilRateCents: number | null }
+  pit: {
+    dumpRateCents: number | null;
+    borrowRateCents: number | null;
+    topsoilRateCents: number | null;
+    materialRatesCents: unknown;
+  }
 ): number | null {
+  // 1. Check per-material override first
+  const perMaterial = (pit.materialRatesCents ?? {}) as Record<string, number>;
+  if (typeof perMaterial[materialType] === "number") return perMaterial[materialType];
+
+  // 2. Topsoil area rate
   const mt = materialType.toLowerCase();
   if (mt.includes("topsoil") || mt.includes("top soil")) {
     return pit.topsoilRateCents ?? pit.dumpRateCents ?? pit.borrowRateCents;
   }
-  // Use dump rate (per-load haul rate) with borrow rate as fallback.
-  // Borrow pits configured via PitForm only set borrowRateCents, so we must fall through.
+
+  // 3. Base dump rate, falling back to borrow rate
   return pit.dumpRateCents ?? pit.borrowRateCents;
 }

@@ -208,10 +208,11 @@ model Pit {
   accepting Boolean   @default(true)
 
   // Rates stored in cents — material-specific
-  dumpRateCents    Int?
-  borrowRateCents  Int?
-  hasTopsoil       Boolean @default(false)
-  topsoilRateCents Int?
+  dumpRateCents       Int?
+  borrowRateCents     Int?
+  hasTopsoil          Boolean @default(false)
+  topsoilRateCents    Int?
+  materialRatesCents  Json    @default("{}")
 
   // Operator & equipment info
   operatorProvided  Boolean @default(false)

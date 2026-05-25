@@ -21,12 +21,12 @@ export default async function EditPitPage({ params }: { params: { id: string } }
     longitude: String(pit.longitude),
     pitType: pit.pitType as PitType,
     accepting: pit.accepting,
-    dumpRateDollars: pit.dumpRateCents
-      ? String(pit.dumpRateCents / 100)
-      : pit.borrowRateCents
-        ? String(pit.borrowRateCents / 100)
-        : "",
+    dumpRateDollars:   pit.dumpRateCents   ? String(pit.dumpRateCents   / 100) : "",
     borrowRateDollars: pit.borrowRateCents ? String(pit.borrowRateCents / 100) : "",
+    materialRatesDollars: Object.fromEntries(
+      Object.entries((pit.materialRatesCents ?? {}) as Record<string, number>)
+        .map(([k, v]) => [k, String(v / 100)])
+    ),
     hasTopsoil: pit.hasTopsoil,
     topsoilRateDollars: pit.topsoilRateCents ? String(pit.topsoilRateCents / 100) : "",
     operatorProvided:  pit.operatorProvided,

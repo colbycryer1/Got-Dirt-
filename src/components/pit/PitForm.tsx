@@ -16,6 +16,8 @@ interface PitFormData {
   borrowRateDollars: string;
   hasTopsoil: boolean;
   topsoilRateDollars: string;
+  // per-material rate overrides: material name → dollar string
+  materialRatesDollars: Record<string, string>;
   operatorProvided: boolean;
   equipmentProvided: boolean;
   equipmentNotes: string;
@@ -48,6 +50,7 @@ const DEFAULT: PitFormData = {
   borrowRateDollars: "",
   hasTopsoil: false,
   topsoilRateDollars: "",
+  materialRatesDollars: {},
   operatorProvided: false,
   equipmentProvided: false,
   equipmentNotes: "",
@@ -69,6 +72,13 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
 
   function set(field: keyof PitFormData, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function setMaterialRate(material: string, dollars: string) {
+    setForm((prev) => ({
+      ...prev,
+      materialRatesDollars: { ...prev.materialRatesDollars, [material]: dollars },
+    }));
   }
 
   function toggleMaterial(material: string) {
@@ -102,10 +112,15 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
       longitude: lng,
       pitType: form.pitType,
       accepting: form.accepting,
-      dumpRateCents: form.dumpRateDollars ? Math.round(parseFloat(form.dumpRateDollars) * 100) : undefined,
-      borrowRateCents: form.borrowRateDollars ? Math.round(parseFloat(form.borrowRateDollars) * 100) : undefined,
-      hasTopsoil: form.hasTopsoil,
+      dumpRateCents:    form.dumpRateDollars    ? Math.round(parseFloat(form.dumpRateDollars)    * 100) : undefined,
+      borrowRateCents:  form.borrowRateDollars  ? Math.round(parseFloat(form.borrowRateDollars)  * 100) : undefined,
+      hasTopsoil:       form.hasTopsoil,
       topsoilRateCents: form.topsoilRateDollars ? Math.round(parseFloat(form.topsoilRateDollars) * 100) : undefined,
+      materialRatesCents: Object.fromEntries(
+        Object.entries(form.materialRatesDollars)
+          .filter(([, v]) => v !== "")
+          .map(([k, v]) => [k, Math.round(parseFloat(v) * 100)])
+      ),
       operatorProvided:  form.operatorProvided,
       equipmentProvided: form.equipmentProvided,
       equipmentNotes:    form.equipmentNotes || undefined,
@@ -191,34 +206,68 @@ export function PitForm({ initialData, pitId, redirectTo = "/dashboard/pit-owner
       </div>
 
       {/* Rates */}
-      <div className="border-t border-gray-100 pt-6">
-        <h3 className="text-sm font-semibold text-gray-800 mb-1">Rates (per load)</h3>
-        <p className="text-xs text-gray-400 mb-4">All loads are charged at the Rate per Load regardless of material. Add topsoil rate only if this pit has a separate topsoil area priced differently.</p>
-        <div className="grid sm:grid-cols-3 gap-4">
-          <div>
-            <label className={labelClass}>Rate per Load ($) *</label>
-            <input
-              type="number" step="0.01" min="0" required
-              value={form.dumpRateDollars}
-              onChange={(e) => set("dumpRateDollars", e.target.value)}
-              className={inputClass}
-              placeholder="60.00"
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Has Topsoil Area?</label>
-            <div className="flex items-center gap-3 mt-2">
-              <input type="checkbox" id="topsoil" checked={form.hasTopsoil} onChange={(e) => set("hasTopsoil", e.target.checked)} className="w-4 h-4 accent-amber-600" />
-              <label htmlFor="topsoil" className="text-sm text-gray-600">Yes — clean topsoil stockpile</label>
-            </div>
-          </div>
-          {form.hasTopsoil && (
+      <div className="border-t border-gray-100 pt-6 space-y-5">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-800 mb-1">Base Rates (per load)</h3>
+          <p className="text-xs text-gray-400 mb-4">Set the rates for dumping material into the pit and borrowing material from it. Per-material overrides below.</p>
+          <div className="grid sm:grid-cols-3 gap-4">
             <div>
-              <label className={labelClass}>Topsoil Rate ($)</label>
-              <input type="number" step="0.01" min="0" value={form.topsoilRateDollars} onChange={(e) => set("topsoilRateDollars", e.target.value)} className={inputClass} placeholder="10.00" />
+              <label className={labelClass}>Dump Rate ($) <span className="text-gray-400 font-normal">— into pit</span></label>
+              <input
+                type="number" step="0.01" min="0"
+                value={form.dumpRateDollars}
+                onChange={(e) => set("dumpRateDollars", e.target.value)}
+                className={inputClass}
+                placeholder="5.00"
+              />
             </div>
-          )}
+            <div>
+              <label className={labelClass}>Borrow Rate ($) <span className="text-gray-400 font-normal">— out of pit</span></label>
+              <input
+                type="number" step="0.01" min="0"
+                value={form.borrowRateDollars}
+                onChange={(e) => set("borrowRateDollars", e.target.value)}
+                className={inputClass}
+                placeholder="60.00"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Has Topsoil Area?</label>
+              <div className="flex items-center gap-3 mt-2">
+                <input type="checkbox" id="topsoil" checked={form.hasTopsoil} onChange={(e) => set("hasTopsoil", e.target.checked)} className="w-4 h-4 accent-amber-600" />
+                <label htmlFor="topsoil" className="text-sm text-gray-600">Yes — separate topsoil stockpile</label>
+              </div>
+              {form.hasTopsoil && (
+                <input type="number" step="0.01" min="0" value={form.topsoilRateDollars} onChange={(e) => set("topsoilRateDollars", e.target.value)} className={`${inputClass} mt-2`} placeholder="Topsoil rate $" />
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* Per-material rate overrides */}
+        {form.materialTypes.length > 0 && (
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-1">Per-Material Rates (optional)</h3>
+            <p className="text-xs text-gray-400 mb-3">Leave blank to use the base Dump or Borrow rate for that material. Fill in to override for a specific material.</p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {form.materialTypes.map((material) => (
+                <div key={material} className="flex items-center gap-3">
+                  <span className="text-sm text-gray-700 min-w-0 flex-1 truncate">{material}</span>
+                  <div className="relative shrink-0 w-28">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={form.materialRatesDollars[material] ?? ""}
+                      onChange={(e) => setMaterialRate(material, e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg pl-6 pr-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      placeholder="/load"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Status */}
