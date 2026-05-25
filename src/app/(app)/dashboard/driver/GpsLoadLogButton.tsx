@@ -224,14 +224,30 @@ export default function GpsLoadLogButton({ locationEnabled, activeOrders }: Prop
 
       {lastLogged && <p className="text-xs text-green-600 font-semibold">Last logged at {lastLogged}</p>}
 
-      <button onClick={handleLogTap} disabled={!canLog || logging}
-        className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95
+      <button
+        onClick={handleLogTap}
+        disabled={!canLog || logging}
+        className={`relative w-full rounded-xl font-bold text-sm transition-colors overflow-hidden
           ${pendingConfirm
-            ? "bg-amber-500 text-white hover:bg-amber-600 animate-pulse"
+            ? "bg-amber-500 text-white"
             : canLog
             ? "bg-blue-600 text-white hover:bg-blue-700"
-            : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}>
-        {logging ? "Logging…" : pendingConfirm ? "Tap again to confirm load" : "Log Load"}
+            : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
+        style={{ height: 52, touchAction: "manipulation" }}
+      >
+        {/* Fixed-size inner layers — text never reflowing keeps the button stable */}
+        <span className={`absolute inset-0 flex items-center justify-center transition-opacity duration-150
+          ${pendingConfirm || logging ? "opacity-0" : "opacity-100"}`}>
+          Log Load
+        </span>
+        <span className={`absolute inset-0 flex items-center justify-center transition-opacity duration-150
+          ${pendingConfirm && !logging ? "opacity-100" : "opacity-0"}`}>
+          Tap again to confirm
+        </span>
+        <span className={`absolute inset-0 flex items-center justify-center transition-opacity duration-150
+          ${logging ? "opacity-100" : "opacity-0"}`}>
+          Logging…
+        </span>
       </button>
 
       <p className="text-xs text-gray-400 text-center">
