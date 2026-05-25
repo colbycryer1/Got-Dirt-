@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isBuyerRole } from "@/types";
 import { sendHaulRequestToHauler, sendHaulBroadcast } from "@/lib/email";
+import { filterAvailableHaulers } from "@/lib/hauler-overlap";
 
 const createSchema = z.object({
   driverId:      z.string().optional(),
@@ -180,21 +181,35 @@ export async function POST(req: Request) {
   if (broadcast) {
     // Buyer-rate broadcasts go to INDEPENDENT DRIVERS ONLY.
     // Pit-rate broadcasts (pit owner locked a daily rate) go to ALL haulers.
-    const [drivers, carriers] = await Promise.all([
+    const [allDrivers, allCarriers] = await Promise.all([
       prisma.driverProfile.findMany({
         where:  { profilePublic: true, docsVerified: true },
-        select: { user: { select: { email: true, name: true } } },
+        select: { id: true, user: { select: { email: true } } },
       }),
       pitRateBroadcast
         ? prisma.carrierProfile.findMany({
             where:  { profilePublic: true },
-            select: { user: { select: { email: true } } },
+            select: { id: true, user: { select: { email: true } } },
           })
         : Promise.resolve([]),
     ]);
+
+    // Filter out haulers who already have a confirmed order within ±4 hours
+    // (same buyer / same project are never treated as conflicts)
+    const newOrderDate      = new Date(parsed.data.scheduledDate);
+    const newOrderProjectId = parsed.data.projectId ?? null;
+    const [availDriverIds, availCarrierIds] = await Promise.all([
+      filterAvailableHaulers("driver",  allDrivers.map((d) => d.id),  newOrderDate, session.user.id, newOrderProjectId),
+      allCarriers.length > 0
+        ? filterAvailableHaulers("carrier", allCarriers.map((c) => c.id), newOrderDate, session.user.id, newOrderProjectId)
+        : Promise.resolve([]),
+    ]);
+
+    const availDriverSet  = new Set(availDriverIds);
+    const availCarrierSet = new Set(availCarrierIds);
     const emails = [
-      ...drivers.map((d) => d.user.email).filter(Boolean),
-      ...carriers.map((c) => c.user.email).filter(Boolean),
+      ...allDrivers.filter((d) => availDriverSet.has(d.id)).map((d) => d.user.email).filter(Boolean),
+      ...allCarriers.filter((c) => availCarrierSet.has(c.id)).map((c) => c.user.email).filter(Boolean),
     ] as string[];
     if (emails.length > 0) {
       sendHaulBroadcast({
