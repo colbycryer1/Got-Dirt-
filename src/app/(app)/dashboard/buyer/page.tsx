@@ -14,7 +14,7 @@ export default async function BuyerDashboardPage() {
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
 
-  const [user, projects, activeOrders, recentActivity, totalSpent, pendingHaulOrders] = await Promise.all([
+  const [user, projects, activeOrders, allOrderCount, totalLoads, recentActivity, totalSpent, pendingHaulOrders] = await Promise.all([
     prisma.user.findUnique({
       where:  { id: session.user.id },
       select: { name: true, company: true, defaultPaymentMethodId: true },
@@ -34,6 +34,12 @@ export default async function BuyerDashboardPage() {
       },
       orderBy: { date: "desc" },
       take: 10,
+    }),
+    // Total order count across all statuses
+    prisma.order.count({ where: { buyerUserId: session.user.id } }),
+    // Total verified loads across ALL orders (not just active)
+    prisma.loadEvent.count({
+      where: { order: { buyerUserId: session.user.id }, verified: true, disputed: false },
     }),
     // Recent verified load events across all buyer's orders
     prisma.loadEvent.findMany({
@@ -69,7 +75,6 @@ export default async function BuyerDashboardPage() {
     }),
   ]);
 
-  const totalLoads = activeOrders.reduce((s, o) => s + o._count.loadEvents, 0);
   const spentCents = totalSpent._sum.grossAmountCents ?? 0;
   const greeting = user?.name ? `Welcome back, ${user.name.split(" ")[0]}` : "Welcome back";
 
@@ -121,7 +126,7 @@ export default async function BuyerDashboardPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             { label: "Projects",      value: projects.length,                  href: "/dashboard/buyer/projects" },
-            { label: "Active Orders", value: activeOrders.length,              href: "/dashboard/buyer/orders" },
+            { label: "Total Orders",  value: allOrderCount,                    href: "/dashboard/buyer/orders" },
             { label: "Total Loads",   value: totalLoads,                       href: "/dashboard/buyer/orders" },
             { label: "Total Spent",   value: `$${(spentCents / 100).toFixed(2)}`, href: "/dashboard/buyer/invoices" },
           ].map((s) => (

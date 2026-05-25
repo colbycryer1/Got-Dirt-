@@ -79,8 +79,11 @@ export default async function OrderHistoryPage() {
               const spent = order.settlements
                 .filter((s) => s.status === "PROCESSED")
                 .reduce((sum, s) => sum + s.grossAmountCents, 0);
-              const hasProcessedSettlement = order.settlements.some((s) => s.status === "PROCESSED");
-              const hasUnchargedLoads = order._count.loadEvents > 0 && !hasProcessedSettlement;
+              const settledLoadCount = order.settlements
+                .filter((s) => s.status === "PROCESSED")
+                .reduce((sum, s) => sum + s.verifiedLoadCount, 0);
+              const unchargedLoadCount = order._count.loadEvents - settledLoadCount;
+              const hasUnchargedLoads = unchargedLoadCount > 0;
 
               return (
                 <div key={order.id} className={`bg-white rounded-2xl border p-5 ${hasUnchargedLoads && order.status === "COMPLETED" ? "border-amber-300" : "border-gray-200"}`}>
@@ -121,7 +124,7 @@ export default async function OrderHistoryPage() {
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       {hasUnchargedLoads && (
-                        <ChargeOrderButton orderId={order.id} loadCount={order._count.loadEvents} />
+                        <ChargeOrderButton orderId={order.id} loadCount={unchargedLoadCount} />
                       )}
                       {order.status === "ACTIVE" && (
                         <CloseOrderButton orderId={order.id} />
