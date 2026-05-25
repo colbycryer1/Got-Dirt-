@@ -21,16 +21,11 @@ export default async function PitOwnerDashboard() {
   });
   const pitIds = pits.map((p) => p.id);
 
-  const [todayLoads, pendingSettlements, recentSettlements] = await Promise.all([
+  const [todayLoadEvents, recentSettlements] = await Promise.all([
     pitIds.length > 0
-      ? prisma.loadEvent.count({
+      ? prisma.loadEvent.findMany({
           where: { pitId: { in: pitIds }, verified: true, disputed: false, createdAt: { gte: today } },
-        })
-      : Promise.resolve(0),
-    pitIds.length > 0
-      ? prisma.settlement.findMany({
-          where: { order: { pitId: { in: pitIds } }, status: "PENDING", date: { gte: today } },
-          include: { order: { select: { pit: { select: { name: true } } } } },
+          select: { rateCentsAtTime: true },
         })
       : Promise.resolve([]),
     pitIds.length > 0
@@ -43,7 +38,12 @@ export default async function PitOwnerDashboard() {
       : Promise.resolve([]),
   ]);
 
-  const todayEstimatedPayout = pendingSettlements.reduce((s, st) => s + st.netToPitCents, 0);
+  const feeSettings = await prisma.platformSettings.findUnique({ where: { id: "singleton" } });
+  const feePercent = feeSettings?.feePercent ?? 8.0;
+
+  const todayLoads = todayLoadEvents.length;
+  const todayGrossCents = todayLoadEvents.reduce((s, l) => s + l.rateCentsAtTime, 0);
+  const todayEstimatedPayout = Math.round(todayGrossCents * (1 - feePercent / 100));
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -69,6 +69,9 @@ export default async function PitOwnerDashboard() {
           <div className="bg-white rounded-2xl border border-gray-200 p-5 text-center">
             <p className="text-2xl font-black text-gray-900">{todayEstimatedPayout > 0 ? centsToDisplay(todayEstimatedPayout) : "—"}</p>
             <p className="text-sm text-gray-500 mt-1">Today&apos;s Payout Est.</p>
+            {todayGrossCents > 0 && (
+              <p className="text-xs text-gray-400 mt-0.5">{centsToDisplay(todayGrossCents)} gross · {feePercent}% fee</p>
+            )}
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-5 text-center">
             <p className="text-4xl font-black text-gray-900">{pits.length}</p>

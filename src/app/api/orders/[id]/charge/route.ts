@@ -4,6 +4,48 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 
+// GET /api/orders/[id]/charge — preview the amount without charging
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const order = await prisma.order.findUnique({
+    where: { id: params.id },
+    select: { buyerUserId: true },
+  });
+  if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (order.buyerUserId !== session.user.id && session.user.role !== "ADMIN")
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const settledDates = (await prisma.settlement.findMany({
+    where:  { orderId: params.id, status: "PROCESSED" },
+    select: { date: true },
+  })).map((s) => s.date.toISOString().slice(0, 10));
+
+  const loads = await prisma.loadEvent.findMany({
+    where: { orderId: params.id, verified: true, disputed: false },
+    select: { rateCentsAtTime: true, exitTime: true, createdAt: true },
+  });
+
+  const unchargedLoads = loads.filter((l) => {
+    const d = new Date(l.exitTime ?? l.createdAt).toISOString().slice(0, 10);
+    return !settledDates.includes(d);
+  });
+
+  const feeSettings = await prisma.platformSettings.findUnique({ where: { id: "singleton" } });
+  const feePercent  = feeSettings?.feePercent ?? 8.0;
+  const grossCents  = unchargedLoads.reduce((s, l) => s + l.rateCentsAtTime, 0);
+  const ratePerLoad = unchargedLoads.length > 0 ? Math.round(grossCents / unchargedLoads.length) : 0;
+
+  return NextResponse.json({
+    loadCount:  unchargedLoads.length,
+    grossCents,
+    netCents:   Math.round(grossCents * (1 - feePercent / 100)),
+    ratePerLoad,
+    feePercent,
+  });
+}
+
 // POST /api/orders/[id]/charge
 // Charges all unsettled verified loads for an order immediately.
 // Works on both ACTIVE and COMPLETED orders.
