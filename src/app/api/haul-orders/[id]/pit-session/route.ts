@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getCobDueAt, isAfterCOB } from "@/lib/timezone";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -53,25 +54,61 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const order = await prisma.haulOrder.findUnique({
     where:  { id: params.id },
-    select: { pitId: true },
+    select: { pitId: true, pitSessionStartedAt: true },
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Verify pit ownership
   const pit = order.pitId
-    ? await prisma.pit.findFirst({ where: { id: order.pitId, ownerId: session.user.id } })
+    ? await prisma.pit.findFirst({
+        where:  { id: order.pitId, ownerId: session.user.id },
+        select: { state: true },
+      })
     : null;
   if (!pit) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  const now = new Date();
+  let updateData: Record<string, unknown>;
+
+  if (active) {
+    // Starting a session
+    updateData = {
+      pitSessionActive:    true,
+      pitSessionStartedAt: now,
+      pitSessionStartedBy: session.user.id,
+    };
+  } else {
+    // Ending a session — compute COB deadline and record actual loads
+    const sessionCount = await prisma.pitOwnerLoadLog.count({
+      where: {
+        haulOrderId: params.id,
+        ...(order.pitSessionStartedAt ? { loggedAt: { gte: order.pitSessionStartedAt } } : {}),
+      },
+    });
+
+    const cobDueAt   = getCobDueAt(pit.state, now);
+    const afterHours = isAfterCOB(pit.state, now);
+    const settings   = await prisma.platformSettings.findUnique({ where: { id: "singleton" } });
+    const afterHoursFeeCents = afterHours ? (settings?.afterHoursFeeCents ?? 500) : 0;
+
+    updateData = {
+      pitSessionActive:    false,
+      pitSessionEndedAt:   now,
+      actualLoads:         sessionCount,
+      cobDueAt,
+      afterHoursFeeCents,
+    };
+  }
+
   const updated = await prisma.haulOrder.update({
-    where: { id: params.id },
-    data:  {
-      pitSessionActive:    active,
-      pitSessionStartedAt: active ? new Date() : undefined,
-      pitSessionStartedBy: active ? session.user.id : undefined,
-    },
-    select: { pitSessionActive: true },
+    where:  { id: params.id },
+    data:   updateData,
+    select: { pitSessionActive: true, cobDueAt: true, afterHoursFeeCents: true },
   });
 
-  return NextResponse.json({ active: updated.pitSessionActive });
+  return NextResponse.json({
+    active:              updated.pitSessionActive,
+    cobDueAt:            updated.cobDueAt ?? null,
+    afterHoursFeeCents:  updated.afterHoursFeeCents,
+  });
 }

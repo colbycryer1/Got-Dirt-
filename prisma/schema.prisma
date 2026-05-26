@@ -483,12 +483,13 @@ model Invoice {
 }
 
 model PlatformSettings {
-  id                 String   @id @default("singleton")
-  feePercent         Float    @default(8.0)   // pit transaction fee %
-  haulFeePercent     Float    @default(10.0)  // driver/carrier haul order fee %
-  earlyEditFeeCents  Int      @default(1000)  // fee for load edits within 24h
-  updatedAt          DateTime @updatedAt
-  updatedBy          String?
+  id                   String   @id @default("singleton")
+  feePercent           Float    @default(8.0)   // pit transaction fee %
+  haulFeePercent       Float    @default(10.0)  // driver/carrier haul order fee %
+  earlyEditFeeCents    Int      @default(1000)  // fee for load edits within 24h
+  afterHoursFeeCents   Int      @default(500)   // fee when session ends after 5:30 PM local
+  updatedAt            DateTime @updatedAt
+  updatedBy            String?
 }
 
 model PitOwnerCompliance {
@@ -796,6 +797,11 @@ model HaulOrder {
 
   driverManualArrival   Boolean   @default(false)
   driverManualArrivalAt DateTime?
+
+  // COB settlement fields — set when pit owner ends the load session
+  pitSessionEndedAt   DateTime?
+  cobDueAt            DateTime? // 5:30 PM local time on session-end day (UTC stored)
+  afterHoursFeeCents  Int       @default(0) // extra fee if session ended after COB
 
   amendments       HaulOrderAmendment[]
   driverLoadLogs   DriverLoadLog[]
