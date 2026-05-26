@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import HaulSessionSection from "./HaulSessionSection";
 
 interface LoadEvent {
   id: string;
@@ -265,6 +266,11 @@ export default function OperatorPage() {
           )}
         </div>
       )}
+
+      {/* Haul order sessions — driver arrivals and active load sessions */}
+      <div className="px-4 pt-4">
+        <HaulSessionSection />
+      </div>
 
       {/* Main load tracking UI */}
       {selectedOrder && (

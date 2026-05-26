@@ -116,9 +116,9 @@ export default function OnSitePanel({ orders, pitIds }: Props) {
           ...prev,
           [orderId]: { ...(prev[orderId] ?? { pitOwnerCount: 0 }), active: !currentlyActive },
         }));
-        // Navigate to focused Log Load screen after starting a session
+        // Navigate to operator console after starting a session
         if (!currentlyActive) {
-          router.push(`/dashboard/pit-owner/log-load/${orderId}`);
+          router.push("/operator");
           return;
         }
       }
