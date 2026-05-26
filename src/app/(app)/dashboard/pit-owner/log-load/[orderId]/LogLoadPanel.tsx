@@ -189,10 +189,10 @@ export default function LogLoadPanel({
         </button>
 
         <Link
-          href="/dashboard/pit-owner/load-history"
+          href="/operator"
           className="text-sm text-gray-500 underline underline-offset-2"
         >
-          View full load history
+          Back to Load Log
         </Link>
       </div>
     );

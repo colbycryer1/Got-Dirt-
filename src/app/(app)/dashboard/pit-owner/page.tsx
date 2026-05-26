@@ -178,7 +178,7 @@ export default async function PitOwnerDashboard() {
             { href: "/dashboard/pit-owner/active-orders", icon: "📋",  label: "Active Orders",
               badge: pendingAmendmentCount > 0 ? pendingAmendmentCount : 0 },
             { href: "/dashboard/pit-owner/pits",          icon: "⛏️",  label: "My Pits" },
-            { href: "/dashboard/pit-owner/load-history",  icon: "🗂️",  label: "Load History" },
+            { href: "/operator",                           icon: "🗂️",  label: "Load Log" },
             { href: "/dashboard/pit-owner/payout-history",icon: "💰",  label: "Payout History" },
             { href: "/dashboard/pit-owner/analytics",     icon: "📊",  label: "Analytics" },
             { href: "/dashboard/pit-owner/geofence",      icon: "📍",  label: "Geofence Map" },
