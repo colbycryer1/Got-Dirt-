@@ -766,8 +766,13 @@ model HaulOrder {
 
   // Platform fee snapshot — recalculated on completion using actualLoads
   platformFeePercent Float @default(0)
-  platformFeeCents   Int   @default(0)  // Got Dirt? revenue on this order
+  platformFeeCents   Int   @default(0)  // Got Dirt? revenue on haul portion
   haulerPayoutCents  Int   @default(0)  // what the driver/carrier receives
+
+  // Pit material charge — locked from pit at order time, settled alongside haul
+  pitMaterialRateCents   Int @default(0)  // pit's per-load material charge (borrowRateCents)
+  pitMaterialFeeCents    Int @default(0)  // platform fee on material portion (feePercent %)
+  pitMaterialPayoutCents Int @default(0)  // net paid to pit owner for materials
 
   stripePaymentIntentId String? @unique
 

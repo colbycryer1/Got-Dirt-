@@ -201,24 +201,48 @@ export async function POST(req: Request) {
   }
 
   const haulFeePercent    = isBuyerOp ? 0 : (platformSettings?.haulFeePercent ?? 10.0);
-  const resolvedTotal     = resolvedHaulRate * orderData.loads;
-  const platformFeeCents  = isBuyerOp ? 0 : Math.round(resolvedTotal * haulFeePercent / 100);
-  const haulerPayoutCents = isBuyerOp ? 0 : resolvedTotal - platformFeeCents;
+  const matFeePercent     = platformSettings?.feePercent ?? 8.0;
+
+  // Lock in the pit's material rate at order time so the charge is accurate
+  // regardless of future pit rate changes.
+  let pitMaterialRateCents = 0;
+  if (orderData.pitId && !isBuyerOp) {
+    const pit = await prisma.pit.findUnique({
+      where:  { id: orderData.pitId },
+      select: { borrowRateCents: true },
+    });
+    pitMaterialRateCents = pit?.borrowRateCents ?? 0;
+  }
+
+  const haulTotal             = resolvedHaulRate * orderData.loads;
+  const materialTotal         = pitMaterialRateCents * orderData.loads;
+  const totalEstimatedCents   = haulTotal + materialTotal;
+  // Deposit covers 25% of the full estimated charge (haul + material)
+  const depositHoldCents      = Math.round(totalEstimatedCents * 0.25);
+
+  const haulPlatformFee       = isBuyerOp ? 0 : Math.round(haulTotal * haulFeePercent / 100);
+  const haulerPayoutCents     = isBuyerOp ? 0 : haulTotal - haulPlatformFee;
+  const matPlatformFee        = Math.round(materialTotal * matFeePercent / 100);
+  const pitMaterialPayout     = materialTotal - matPlatformFee;
 
   const order = await prisma.haulOrder.create({
     data: {
       buyerUserId:  session.user.id,
       ...orderData,
-      haulRateCents:        resolvedHaulRate,
-      totalEstimatedCents:  resolvedTotal,
-      scheduledDate:        new Date(orderData.scheduledDate),
-      expiresAt:            orderData.expiresAt ? new Date(orderData.expiresAt) : undefined,
-      status:               isBuyerOp ? "CONFIRMED" : undefined,
+      haulRateCents:         resolvedHaulRate,
+      totalEstimatedCents,
+      depositHoldCents,
+      scheduledDate:         new Date(orderData.scheduledDate),
+      expiresAt:             orderData.expiresAt ? new Date(orderData.expiresAt) : undefined,
+      status:                isBuyerOp ? "CONFIRMED" : undefined,
       broadcast,
       pitRateBroadcast,
-      platformFeePercent:   haulFeePercent,
-      platformFeeCents,
+      platformFeePercent:    haulFeePercent,
+      platformFeeCents:      haulPlatformFee,
       haulerPayoutCents,
+      pitMaterialRateCents,
+      pitMaterialFeeCents:   matPlatformFee,
+      pitMaterialPayoutCents: pitMaterialPayout,
     },
   });
 
