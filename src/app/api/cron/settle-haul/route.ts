@@ -44,6 +44,7 @@ async function runHaulCOBSettlement(): Promise<SettleResult[]> {
     },
     select: {
       id:                     true,
+      loads:                  true,
       actualLoads:            true,
       haulRateCents:          true,
       pitMaterialRateCents:   true,
@@ -51,6 +52,9 @@ async function runHaulCOBSettlement(): Promise<SettleResult[]> {
       stripePaymentIntentId:  true,
       afterHoursFeeCents:     true,
       platformFeePercent:     true,
+      cobDueAt:               true,
+      overagePendingAt:       true,
+      overageApproved:        true,
       buyer: {
         select: { stripeCustomerId: true, defaultPaymentMethodId: true, email: true, name: true },
       },
@@ -65,7 +69,23 @@ async function runHaulCOBSettlement(): Promise<SettleResult[]> {
   const STRIPE_MIN = 50;
 
   for (const order of due) {
-    const actualLoads = order.actualLoads ?? 0;
+    // If a pit-owner overage is awaiting buyer approval and COB hasn't actually passed yet,
+    // skip this run and let the next hourly tick handle it. This guards against the query
+    // window being slightly ahead of wall-clock COB in the pit's timezone.
+    // (cobDueAt <= now is already guaranteed by the findMany filter, so this branch only
+    //  triggers when overagePendingAt is set AND overageApproved is still null.)
+    if (order.overagePendingAt && order.overageApproved === null) {
+      // Auto-deny: COB passed without buyer approval — charge original loads only
+      await prisma.haulOrder.update({
+        where: { id: order.id },
+        data:  { overageApproved: false, actualLoads: order.loads },
+      });
+      // actualLoads will be order.loads for the charge calculation below
+    }
+
+    const actualLoads = order.overagePendingAt && order.overageApproved === false
+      ? (order.loads)                 // auto-denied — use original
+      : (order.actualLoads ?? 0);     // approved or no overage — use pit count
 
     if (actualLoads === 0) {
       // No loads recorded — cancel the hold and mark complete

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { isBuyerRole } from "@/types";
 import CompleteHaulButton from "./CompleteHaulButton";
+import OverageApprovalCard from "./OverageApprovalCard";
 import { getPitOwnerLoadLogCounts } from "@/lib/haul-load-log";
 
 export const metadata = { title: "Haul Orders — Got Dirt?" };
@@ -100,6 +101,30 @@ export default async function BuyerHaulOrdersPage() {
           </div>
         )}
 
+        {/* Overage alert banner */}
+        {(() => {
+          const pendingOverages = activePlaced.filter(
+            (o) => (o as PlacedOrder).overagePendingAt && (o as PlacedOrder).overageApproved === null
+          );
+          if (pendingOverages.length === 0) return null;
+          return (
+            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">⚠️</span>
+                <div>
+                  <p className="font-bold text-amber-800">
+                    {pendingOverages.length} Haul Order{pendingOverages.length !== 1 ? "s" : ""} Need Your Approval for Extra Loads
+                  </p>
+                  <p className="text-sm text-amber-700">
+                    The pit operator logged more loads than ordered. Approve or dispute below before close of business.
+                  </p>
+                </div>
+              </div>
+              <span className="text-amber-600 font-bold shrink-0 text-sm">{pendingOverages.length} pending</span>
+            </div>
+          );
+        })()}
+
         {/* Carrier incoming requests */}
         {role === "CARRIER" && activeIncoming.length > 0 && (
           <section>
@@ -161,6 +186,7 @@ interface PlacedOrder {
   loads: number;
   actualLoads: number | null;
   haulRateCents: number;
+  pitMaterialRateCents: number;
   totalEstimatedCents: number;
   notes: string | null;
   driverId: string | null;
@@ -176,6 +202,11 @@ interface PlacedOrder {
     haulerApproved: boolean | null;
     pitOwnerApproved: boolean | null;
   }>;
+  // Pit-owner overage approval
+  overageLoads:     number | null;
+  overagePendingAt: Date   | null;
+  overageApproved:  boolean | null;
+  cobDueAt:         Date   | null;
 }
 
 interface IncomingOrder {
@@ -203,6 +234,10 @@ function PlacedOrderRow({ order, statusColors, logCount }: { order: PlacedOrder;
   const haulerType = isSelfHaul ? "Self" : order.carrier ? "3PL" : order.driver ? "Driver" : "Broadcast";
   const canComplete  = !isSelfHaul && (order.status === "CONFIRMED" || order.status === "ACTIVE");
   const canEdit      = ["PENDING", "CONFIRMED"].includes(order.status) && order.scheduledDate > new Date();
+
+  // Overage state — pit operator logged more than ordered, awaiting buyer decision
+  const hasOveragePending = !!order.overagePendingAt && order.overageApproved === null;
+  const hasOverageResolved = !!order.overagePendingAt && order.overageApproved !== null;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5">
@@ -277,7 +312,31 @@ function PlacedOrderRow({ order, statusColors, logCount }: { order: PlacedOrder;
         </div>
       )}
 
-      {canComplete && (
+      {/* Pit-owner overage approval card — takes priority over CompleteHaulButton */}
+      {canComplete && hasOveragePending && order.pit && order.overageLoads && order.actualLoads && (
+        <OverageApprovalCard
+          orderId={order.id}
+          pitName={order.pit.name}
+          orderedLoads={order.loads}
+          actualLoads={order.actualLoads}
+          overageLoads={order.overageLoads}
+          rateCents={order.haulRateCents + order.pitMaterialRateCents}
+          cobTimeStr={order.cobDueAt
+            ? new Date(order.cobDueAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+            : "5:30 PM"}
+        />
+      )}
+
+      {/* Resolved overage notice */}
+      {hasOverageResolved && (
+        <div className={`mt-3 rounded-xl px-4 py-2.5 text-xs ${order.overageApproved ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-500"}`}>
+          {order.overageApproved
+            ? `✓ Extra loads approved — charged for all ${order.actualLoads} loads`
+            : `Overage disputed — charged for original ${order.loads} loads only`}
+        </div>
+      )}
+
+      {canComplete && !hasOveragePending && (
         <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
           {/* Amendment status badge */}
           {order.amendments.length > 0 && order.amendments[0].status === "PENDING" && (

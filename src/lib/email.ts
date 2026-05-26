@@ -277,3 +277,34 @@ export async function sendHaulClaimedToBuyer(opts: {
      <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/buyer/haul-orders">View Haul Orders →</a></p>`
   );
 }
+
+export async function sendOverageApprovalRequest(opts: {
+  buyerEmail:     string;
+  buyerName:      string | null;
+  pitName:        string;
+  orderedLoads:   number;
+  actualLoads:    number;
+  overageLoads:   number;
+  rateCents:      number;
+  cobTimeStr:     string;
+  orderId:        string;
+}) {
+  const { buyerEmail, buyerName, pitName, orderedLoads, actualLoads, overageLoads, rateCents, cobTimeStr, orderId } = opts;
+  const overageCents = overageLoads * rateCents;
+  const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+  await send(
+    buyerEmail,
+    `Got Dirt? — Pit operator logged ${overageLoads} extra load${overageLoads !== 1 ? "s" : ""} — your approval needed`,
+    `<p>Hi ${buyerName ?? "there"},</p>
+     <p>The pit operator at <strong>${pitName}</strong> has ended the load session and logged more loads than your original order.</p>
+     <ul>
+       <li>Original order: <strong>${orderedLoads} load${orderedLoads !== 1 ? "s" : ""}</strong></li>
+       <li>Pit operator count: <strong>${actualLoads} load${actualLoads !== 1 ? "s" : ""}</strong></li>
+       <li>Extra loads: <strong>+${overageLoads}</strong> (${fmt(overageCents)} additional)</li>
+     </ul>
+     <p><strong>Please approve or dispute by ${cobTimeStr} (close of business) to avoid automatic billing at the original load count.</strong></p>
+     <p>If you approve, you will be charged for all ${actualLoads} loads. If you dispute, you will only be charged for the original ${orderedLoads} loads.</p>
+     <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/buyer/haul-orders" style="background:#d97706;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;">Review &amp; Approve →</a></p>
+     <p style="color:#6b7280;font-size:12px;">Order ID: ${orderId}</p>`
+  );
+}

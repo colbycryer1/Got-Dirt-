@@ -808,6 +808,11 @@ model HaulOrder {
   cobDueAt            DateTime? // 5:30 PM local time on session-end day (UTC stored)
   afterHoursFeeCents  Int       @default(0) // extra fee if session ended after COB
 
+  // Overage approval — when pit owner logs more loads than ordered, buyer must approve
+  overageLoads     Int?      // extra loads beyond order.loads (set at session end)
+  overagePendingAt DateTime? // when the overage was flagged
+  overageApproved  Boolean?  // null=awaiting buyer, true=approved, false=denied or auto-denied at COB
+
   amendments       HaulOrderAmendment[]
   driverLoadLogs   DriverLoadLog[]
   pitOwnerLoadLogs PitOwnerLoadLog[]

@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getCobDueAt, isAfterCOB } from "@/lib/timezone";
+import { sendOverageApprovalRequest } from "@/lib/email";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -63,7 +64,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const order = await prisma.haulOrder.findUnique({
     where:  { id: params.id },
-    select: { pitId: true, pitSessionStartedAt: true },
+    select: {
+      pitId:               true,
+      pitSessionStartedAt: true,
+      loads:               true,
+      haulRateCents:       true,
+      pitMaterialRateCents: true,
+      buyer: { select: { email: true, name: true } },
+    },
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -71,7 +79,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const pit = order.pitId
     ? await prisma.pit.findFirst({
         where:  { id: order.pitId, ownerId: session.user.id },
-        select: { state: true },
+        select: { state: true, name: true },
       })
     : null;
   if (!pit) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -100,13 +108,38 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const settings   = await prisma.platformSettings.findUnique({ where: { id: "singleton" } });
     const afterHoursFeeCents = afterHours ? (settings?.afterHoursFeeCents ?? 500) : 0;
 
+    // Detect overage — pit logged more loads than the buyer ordered
+    const overageLoads = sessionCount > order.loads ? sessionCount - order.loads : 0;
+
     updateData = {
       pitSessionActive:    false,
       pitSessionEndedAt:   now,
       actualLoads:         sessionCount,
       cobDueAt,
       afterHoursFeeCents,
+      ...(overageLoads > 0 ? {
+        overageLoads,
+        overagePendingAt: now,
+        // overageApproved stays null — awaiting buyer decision
+      } : {}),
     };
+
+    // Notify buyer about overage so they can approve before COB
+    if (overageLoads > 0 && order.buyer.email) {
+      const cobTimeStr = cobDueAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      const perLoadCents = order.haulRateCents + (order.pitMaterialRateCents ?? 0);
+      sendOverageApprovalRequest({
+        buyerEmail:   order.buyer.email,
+        buyerName:    order.buyer.name,
+        pitName:      pit.name ?? pit.state,
+        orderedLoads: order.loads,
+        actualLoads:  sessionCount,
+        overageLoads,
+        rateCents:    perLoadCents,
+        cobTimeStr,
+        orderId:      params.id,
+      }).catch(console.error);
+    }
   }
 
   const updated = await prisma.haulOrder.update({
