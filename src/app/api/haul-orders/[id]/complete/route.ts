@@ -26,7 +26,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const order = await prisma.haulOrder.findUnique({
     where:   { id: params.id },
     include: {
-      buyer: { select: { stripeCustomerId: true, defaultPaymentMethodId: true } },
+      buyer: { select: { stripeCustomerId: true, defaultPaymentMethodId: true, email: true } },
     },
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -35,13 +35,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: "Order cannot be completed in its current state" }, { status: 409 });
   }
 
-  // Calculate final charge based on ACTUAL loads, not estimated
-  const actualTotalCents = actualLoads * order.haulRateCents;
+  // Calculate final charge based on ACTUAL loads — haul + material portions split separately
+  const haulCents          = actualLoads * order.haulRateCents;
+  const materialCents      = actualLoads * (order.pitMaterialRateCents ?? 0);
+  const actualTotalCents   = haulCents + materialCents;
 
   const settings = await prisma.platformSettings.findUnique({ where: { id: "singleton" } });
-  const haulFeePercent       = settings?.haulFeePercent ?? 10.0;
-  const actualPlatformFee    = Math.round(actualTotalCents * haulFeePercent / 100);
-  const actualHaulerPayout   = actualTotalCents - actualPlatformFee;
+  const haulFeePercent     = settings?.haulFeePercent ?? 10.0;
+  const matFeePercent      = settings?.feePercent      ?? 8.0;
+
+  const haulPlatformFee    = Math.round(haulCents     * haulFeePercent / 100);
+  const matPlatformFee     = Math.round(materialCents * matFeePercent  / 100);
+  const actualPlatformFee  = haulPlatformFee + matPlatformFee;
+  const actualHaulerPayout = haulCents - haulPlatformFee;
+  const pitMaterialPayout  = materialCents - matPlatformFee;
 
   const STRIPE_MIN_CENTS = 50; // Stripe minimum charge is $0.50
 
@@ -81,19 +88,22 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const updated = await prisma.haulOrder.update({
     where: { id: params.id },
     data:  {
-      status:            "COMPLETED",
+      status:                 "COMPLETED",
       actualLoads,
-      platformFeePercent: haulFeePercent,
-      platformFeeCents:   actualPlatformFee,
-      haulerPayoutCents:  actualHaulerPayout,
+      platformFeePercent:     haulFeePercent,
+      platformFeeCents:       actualPlatformFee,
+      haulerPayoutCents:      actualHaulerPayout,
+      pitMaterialFeeCents:    matPlatformFee,
+      pitMaterialPayoutCents: pitMaterialPayout,
     },
   });
 
   return NextResponse.json({
-    order:             updated,
+    order:                  updated,
     actualLoads,
     actualTotalCents,
-    platformFeeCents:  actualPlatformFee,
-    haulerPayoutCents: actualHaulerPayout,
+    platformFeeCents:       actualPlatformFee,
+    haulerPayoutCents:      actualHaulerPayout,
+    pitMaterialPayoutCents: pitMaterialPayout,
   });
 }

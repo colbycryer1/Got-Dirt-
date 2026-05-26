@@ -22,7 +22,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!isBuyerRole(session.user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const order = await prisma.haulOrder.findUnique({ where: { id: params.id } });
+  const order = await prisma.haulOrder.findUnique({
+    where:  { id: params.id },
+    select: {
+      id: true, buyerUserId: true, status: true, scheduledDate: true,
+      haulRateCents: true, pitMaterialRateCents: true,
+    },
+  });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (order.buyerUserId !== session.user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -51,9 +57,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const updateData: Record<string, unknown> = {};
     if (scheduledDate) updateData.scheduledDate = new Date(scheduledDate);
     if (loads) {
+      const perLoadCents             = order.haulRateCents + order.pitMaterialRateCents;
       updateData.loads               = loads;
-      updateData.totalEstimatedCents = loads * order.haulRateCents;
-      updateData.depositHoldCents    = Math.round(loads * order.haulRateCents * 0.25);
+      updateData.totalEstimatedCents = loads * perLoadCents;
+      updateData.depositHoldCents    = Math.round(loads * perLoadCents * 0.25);
     }
     if (notes !== undefined) updateData.notes = notes || null;
 

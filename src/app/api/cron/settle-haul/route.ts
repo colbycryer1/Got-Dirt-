@@ -46,6 +46,7 @@ async function runHaulCOBSettlement(): Promise<SettleResult[]> {
       id:                     true,
       actualLoads:            true,
       haulRateCents:          true,
+      pitMaterialRateCents:   true,
       depositHoldCents:       true,
       stripePaymentIntentId:  true,
       afterHoursFeeCents:     true,
@@ -56,8 +57,9 @@ async function runHaulCOBSettlement(): Promise<SettleResult[]> {
     },
   });
 
-  const settings     = await prisma.platformSettings.findUnique({ where: { id: "singleton" } });
+  const settings       = await prisma.platformSettings.findUnique({ where: { id: "singleton" } });
   const haulFeePercent = settings?.haulFeePercent ?? 10.0;
+  const matFeePercent  = settings?.feePercent      ?? 8.0;
 
   const results: SettleResult[] = [];
   const STRIPE_MIN = 50;
@@ -73,31 +75,41 @@ async function runHaulCOBSettlement(): Promise<SettleResult[]> {
       await prisma.haulOrder.update({
         where: { id: order.id },
         data:  {
-          status:            "COMPLETED",
-          platformFeePercent: haulFeePercent,
-          platformFeeCents:   0,
-          haulerPayoutCents:  0,
+          status:                 "COMPLETED",
+          platformFeePercent:     haulFeePercent,
+          platformFeeCents:       0,
+          haulerPayoutCents:      0,
+          pitMaterialPayoutCents: 0,
+          pitMaterialFeeCents:    0,
         },
       });
       results.push({ haulOrderId: order.id, status: "zero_loads", actualLoads: 0, totalCents: 0 });
       continue;
     }
 
-    const baseCents        = actualLoads * order.haulRateCents;
-    const totalCents       = baseCents + (order.afterHoursFeeCents ?? 0);
-    const platformFeeCents = Math.round(totalCents * haulFeePercent / 100);
-    const haulerPayout     = totalCents - platformFeeCents;
+    const haulCents            = actualLoads * order.haulRateCents;
+    const materialCents        = actualLoads * (order.pitMaterialRateCents ?? 0);
+    const baseCents            = haulCents + materialCents;
+    const totalCents           = baseCents + (order.afterHoursFeeCents ?? 0);
+
+    const haulPlatformFee      = Math.round(haulCents * haulFeePercent / 100);
+    const haulerPayout         = haulCents - haulPlatformFee;
+    const matPlatformFee       = Math.round(materialCents * matFeePercent / 100);
+    const pitMaterialPayout    = materialCents - matPlatformFee;
+    const platformFeeCents     = haulPlatformFee + matPlatformFee;
 
     if (!order.stripePaymentIntentId) {
       // No Stripe hold — just mark complete (buyer-operating or non-Stripe order)
       await prisma.haulOrder.update({
         where: { id: order.id },
         data:  {
-          status:            "COMPLETED",
+          status:                 "COMPLETED",
           actualLoads,
-          platformFeePercent: haulFeePercent,
+          platformFeePercent:     haulFeePercent,
           platformFeeCents,
-          haulerPayoutCents:  haulerPayout,
+          haulerPayoutCents:      haulerPayout,
+          pitMaterialPayoutCents: pitMaterialPayout,
+          pitMaterialFeeCents:    matPlatformFee,
         },
       });
       results.push({ haulOrderId: order.id, status: "no_stripe", actualLoads, totalCents });
@@ -140,11 +152,13 @@ async function runHaulCOBSettlement(): Promise<SettleResult[]> {
       await prisma.haulOrder.update({
         where: { id: order.id },
         data:  {
-          status:             "COMPLETED",
+          status:                 "COMPLETED",
           actualLoads,
-          platformFeePercent: haulFeePercent,
+          platformFeePercent:     haulFeePercent,
           platformFeeCents,
-          haulerPayoutCents:  haulerPayout,
+          haulerPayoutCents:      haulerPayout,
+          pitMaterialPayoutCents: pitMaterialPayout,
+          pitMaterialFeeCents:    matPlatformFee,
         },
       });
 
