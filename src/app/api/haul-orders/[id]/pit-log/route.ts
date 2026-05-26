@@ -16,7 +16,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   const order = await prisma.haulOrder.findUnique({
     where:  { id: params.id },
-    select: { pitId: true, pitSessionActive: true },
+    select: { pitId: true, pitSessionActive: true, pitSessionStartedAt: true },
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (!order.pitSessionActive)
@@ -32,15 +32,31 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     data: { haulOrderId: params.id, pitOwnerUserId: session.user.id },
   });
 
-  const count = await prisma.pitOwnerLoadLog.count({ where: { haulOrderId: params.id } });
+  // Count only logs from the current session (since pitSessionStartedAt)
+  const count = await prisma.pitOwnerLoadLog.count({
+    where: {
+      haulOrderId: params.id,
+      ...(order.pitSessionStartedAt ? { loggedAt: { gte: order.pitSessionStartedAt } } : {}),
+    },
+  });
   return NextResponse.json({ count });
 }
 
-// GET /api/haul-orders/[id]/pit-log — return current pit owner count for this order
+// GET /api/haul-orders/[id]/pit-log — current session's pit owner count for this order
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const count = await prisma.pitOwnerLoadLog.count({ where: { haulOrderId: params.id } });
+  const order = await prisma.haulOrder.findUnique({
+    where:  { id: params.id },
+    select: { pitSessionStartedAt: true },
+  });
+
+  const count = await prisma.pitOwnerLoadLog.count({
+    where: {
+      haulOrderId: params.id,
+      ...(order?.pitSessionStartedAt ? { loggedAt: { gte: order.pitSessionStartedAt } } : {}),
+    },
+  });
   return NextResponse.json({ count });
 }

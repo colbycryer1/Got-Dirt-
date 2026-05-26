@@ -2,21 +2,37 @@ import { prisma } from "./prisma";
 
 /**
  * Returns pit owner tap counts from PitOwnerLoadLog keyed by haulOrderId.
- * This is the authoritative "pit operator logged X loads" count shown to
- * drivers and buyers for dispute resolution.
+ * Counts are scoped to the CURRENT session only (loggedAt >= pitSessionStartedAt)
+ * so that historical entries from old sessions don't pollute the count, and
+ * starting a new session for the next order naturally resets the display to 0.
  */
 export async function getPitOwnerLoadLogCounts(
   haulOrderIds: string[]
 ): Promise<Record<string, number>> {
   if (haulOrderIds.length === 0) return {};
-  const groups = await prisma.pitOwnerLoadLog.groupBy({
-    by:    ["haulOrderId"],
-    where: { haulOrderId: { in: haulOrderIds } },
-    _count: { id: true },
+
+  // Fetch session start times so we can scope counts to the current session
+  const orders = await prisma.haulOrder.findMany({
+    where:  { id: { in: haulOrderIds } },
+    select: { id: true, pitSessionStartedAt: true },
   });
+
+  const sessionStarts: Record<string, Date | null> = {};
+  for (const o of orders) sessionStarts[o.id] = o.pitSessionStartedAt;
+
+  // Fetch all relevant logs in one query, then filter in memory
+  const logs = await prisma.pitOwnerLoadLog.findMany({
+    where:  { haulOrderId: { in: haulOrderIds } },
+    select: { haulOrderId: true, loggedAt: true },
+  });
+
   const counts: Record<string, number> = {};
-  for (const g of groups) {
-    counts[g.haulOrderId] = g._count.id;
+  for (const log of logs) {
+    const start = sessionStarts[log.haulOrderId];
+    // Only count logs from the current session
+    if (!start || log.loggedAt >= start) {
+      counts[log.haulOrderId] = (counts[log.haulOrderId] ?? 0) + 1;
+    }
   }
   return counts;
 }

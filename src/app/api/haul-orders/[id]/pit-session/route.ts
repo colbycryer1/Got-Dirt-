@@ -15,7 +15,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const order = await prisma.haulOrder.findUnique({
     where:  { id: params.id },
     select: {
-      pitSessionActive: true,
+      pitSessionActive:    true,
+      pitSessionStartedAt: true,
       pit: {
         select: { latitude: true, longitude: true, geofenceRadiusMeters: true },
       },
@@ -23,7 +24,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const count = await prisma.pitOwnerLoadLog.count({ where: { haulOrderId: params.id } });
+  // Only count logs from the current session so stale entries from old sessions are excluded
+  const count = await prisma.pitOwnerLoadLog.count({
+    where: {
+      haulOrderId: params.id,
+      ...(order.pitSessionStartedAt ? { loggedAt: { gte: order.pitSessionStartedAt } } : {}),
+    },
+  });
 
   return NextResponse.json({
     active:         order.pitSessionActive,
