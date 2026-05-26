@@ -25,20 +25,27 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Only count logs from the current session so stale entries from old sessions are excluded
-  const count = await prisma.pitOwnerLoadLog.count({
-    where: {
-      haulOrderId: params.id,
-      ...(order.pitSessionStartedAt ? { loggedAt: { gte: order.pitSessionStartedAt } } : {}),
-    },
-  });
+  // Count logs from the current session only
+  const [pitOwnerCount, driverCount] = await Promise.all([
+    prisma.pitOwnerLoadLog.count({
+      where: {
+        haulOrderId: params.id,
+        ...(order.pitSessionStartedAt ? { loggedAt: { gte: order.pitSessionStartedAt } } : {}),
+      },
+    }),
+    prisma.driverLoadLog.count({
+      where: { haulOrderId: params.id },
+    }),
+  ]);
 
   return NextResponse.json({
-    active:         order.pitSessionActive,
-    pitLat:         order.pit?.latitude ?? null,
-    pitLng:         order.pit?.longitude ?? null,
-    geofenceMeters: order.pit?.geofenceRadiusMeters ?? 200,
-    pitOwnerCount:  count,
+    active:           order.pitSessionActive,
+    pitLat:           order.pit?.latitude ?? null,
+    pitLng:           order.pit?.longitude ?? null,
+    geofenceMeters:   order.pit?.geofenceRadiusMeters ?? 200,
+    pitOwnerCount,
+    driverCount,
+    sessionStartedAt: order.pitSessionStartedAt ?? null,
   });
 }
 

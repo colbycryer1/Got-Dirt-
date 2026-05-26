@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 interface ActiveHaulOrder {
   id:               string;
@@ -35,6 +36,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function OnSitePanel({ orders, pitIds }: Props) {
+  const router = useRouter();
   const [onSiteMap,    setOnSiteMap]    = useState<Record<string, boolean>>({});
   const [manualMap,    setManualMap]    = useState<Record<string, boolean>>({});
   const [sessionMap,   setSessionMap]   = useState<Record<string, SessionState>>({});
@@ -114,6 +116,11 @@ export default function OnSitePanel({ orders, pitIds }: Props) {
           ...prev,
           [orderId]: { ...(prev[orderId] ?? { pitOwnerCount: 0 }), active: !currentlyActive },
         }));
+        // Navigate to focused Log Load screen after starting a session
+        if (!currentlyActive) {
+          router.push(`/dashboard/pit-owner/log-load/${orderId}`);
+          return;
+        }
       }
     } catch {}
     setTogglingId(null);
@@ -221,7 +228,7 @@ export default function OnSitePanel({ orders, pitIds }: Props) {
                           : "bg-amber-600 text-white hover:bg-amber-700"
                       } disabled:opacity-50`}
                     >
-                      {togglingId === order.id ? "…" : sessActive ? "End Session" : "Start Load Session"}
+                      {togglingId === order.id ? "…" : sessActive ? "End Session" : "Start Loading"}
                     </button>
                   </div>
 

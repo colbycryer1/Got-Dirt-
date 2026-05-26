@@ -42,7 +42,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   return NextResponse.json({ count });
 }
 
-// GET /api/haul-orders/[id]/pit-log — current session's pit owner count for this order
+// GET /api/haul-orders/[id]/pit-log — current session logs (count + timestamps)
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -52,11 +52,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     select: { pitSessionStartedAt: true },
   });
 
-  const count = await prisma.pitOwnerLoadLog.count({
+  const logs = await prisma.pitOwnerLoadLog.findMany({
     where: {
       haulOrderId: params.id,
       ...(order?.pitSessionStartedAt ? { loggedAt: { gte: order.pitSessionStartedAt } } : {}),
     },
+    orderBy: { loggedAt: "asc" },
+    select:  { id: true, loggedAt: true },
   });
-  return NextResponse.json({ count });
+
+  return NextResponse.json({ count: logs.length, logs });
 }

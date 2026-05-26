@@ -105,10 +105,10 @@ export default function LiveSessionBanner({ orders, pitIds }: Props) {
           ...prev,
           [orderId]: { ...(prev[orderId] ?? { pitOwnerCount: 0 }), active: !currentlyActive },
         }));
-        // After starting a session, navigate to the Load Log so the pit owner
-        // can begin tapping loads immediately in the full session interface.
+        // After starting a session, navigate to the focused Log Load screen
+        // so the pit owner can immediately begin tapping loads for that order.
         if (!currentlyActive) {
-          router.push("/dashboard/pit-owner/active-orders");
+          router.push(`/dashboard/pit-owner/log-load/${orderId}`);
           return;
         }
       }
@@ -218,7 +218,7 @@ export default function LiveSessionBanner({ orders, pitIds }: Props) {
                   ? "…"
                   : sessActive
                   ? "End Session"
-                  : "Start Load Session"}
+                  : "Start Loading"}
               </button>
             </div>
           </div>
