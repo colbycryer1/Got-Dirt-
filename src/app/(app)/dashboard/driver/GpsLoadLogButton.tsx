@@ -117,14 +117,17 @@ export default function GpsLoadLogButton({ locationEnabled, activeOrders }: Prop
   }, [activeOrders]);
 
   // Derived state
-  const selectedOrder  = activeOrders.find((o) => o.id === orderId);
-  const isStationary   = speed === null || speed < SPEED_THRESHOLD_MS;
+  const selectedOrder   = activeOrders.find((o) => o.id === orderId);
+  const isStationary    = speed === null || speed < SPEED_THRESHOLD_MS;
   const arrivedManually = manualArrived[orderId] === true;
 
   const distanceToPit = (lat !== null && lng !== null && selectedOrder?.pitLat && selectedOrder?.pitLng)
     ? haversineMeters(lat, lng, selectedOrder.pitLat, selectedOrder.pitLng)
     : null;
   const withinGeofence = distanceToPit !== null && distanceToPit <= (selectedOrder?.geofenceMeters ?? 200);
+
+  // GPS is "not working" when location is off OR enabled but no position has been acquired yet
+  const gpsNotWorking = !locationEnabled || (locationEnabled && lat === null);
 
   // Manual arrival bypasses both the geofence and location-enabled gates
   const atPit  = withinGeofence || arrivedManually;
@@ -261,8 +264,8 @@ export default function GpsLoadLogButton({ locationEnabled, activeOrders }: Prop
         </span>
       </div>
 
-      {/* Manual arrival failsafe — shown when GPS has not placed driver at the pit */}
-      {!withinGeofence && !!orderId && (
+      {/* Manual arrival failsafe — shown only when GPS tracking is not working */}
+      {gpsNotWorking && !withinGeofence && !!orderId && (
         arrivedManually ? (
           <div className="flex items-center justify-between gap-2 bg-teal-50 border border-teal-200 rounded-xl px-4 py-2.5">
             <div className="flex items-center gap-2 text-xs text-teal-700 font-semibold">
