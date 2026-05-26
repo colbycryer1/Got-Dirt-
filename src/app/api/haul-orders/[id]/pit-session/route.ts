@@ -7,6 +7,15 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R    = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a    = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // GET /api/haul-orders/[id]/pit-session
 // Driver polls to check if the pit owner has started a load session for their order.
 // Returns pit coordinates so the driver can check their own geofence position.
@@ -65,12 +74,22 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const order = await prisma.haulOrder.findUnique({
     where:  { id: params.id },
     select: {
-      pitId:               true,
-      pitSessionStartedAt: true,
-      loads:               true,
-      haulRateCents:       true,
-      pitMaterialRateCents: true,
-      buyer: { select: { email: true, name: true } },
+      pitId:                 true,
+      pitSessionStartedAt:   true,
+      loads:                 true,
+      haulRateCents:         true,
+      pitMaterialRateCents:  true,
+      driverManualArrival:   true,
+      driverManualArrivalAt: true,
+      buyer:  { select: { email: true, name: true } },
+      driver: {
+        select: {
+          currentLat:          true,
+          currentLng:          true,
+          lastLocationAt:      true,
+          liveLocationEnabled: true,
+        },
+      },
     },
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -79,7 +98,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const pit = order.pitId
     ? await prisma.pit.findFirst({
         where:  { id: order.pitId, ownerId: session.user.id },
-        select: { state: true, name: true },
+        select: { state: true, name: true, latitude: true, longitude: true, geofenceRadiusMeters: true },
       })
     : null;
   if (!pit) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -88,7 +107,45 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   let updateData: Record<string, unknown>;
 
   if (active) {
-    // Starting a session
+    // Verify hauler is within the geofence or has manually confirmed arrival
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+    const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000);
+
+    let onSite = false;
+
+    // GPS geofence check — driver with live location enabled and recent ping
+    const driver = order.driver;
+    if (
+      driver?.liveLocationEnabled &&
+      driver.currentLat  != null &&
+      driver.currentLng  != null &&
+      driver.lastLocationAt != null &&
+      new Date(driver.lastLocationAt) >= twoMinutesAgo
+    ) {
+      const dist = haversineMeters(
+        pit.latitude, pit.longitude,
+        driver.currentLat, driver.currentLng,
+      );
+      if (dist <= (pit.geofenceRadiusMeters ?? 200)) onSite = true;
+    }
+
+    // Manual arrival fallback — driver tapped "I've Arrived" within 8 hours
+    if (
+      !onSite &&
+      order.driverManualArrival &&
+      order.driverManualArrivalAt &&
+      new Date(order.driverManualArrivalAt) >= eightHoursAgo
+    ) {
+      onSite = true;
+    }
+
+    if (!onSite) {
+      return NextResponse.json(
+        { error: "Cannot start session — the hauler is not within the pit geofence. The driver must arrive on-site (GPS or manual arrival) before you can begin logging loads." },
+        { status: 409 },
+      );
+    }
+
     updateData = {
       pitSessionActive:    true,
       pitSessionStartedAt: now,

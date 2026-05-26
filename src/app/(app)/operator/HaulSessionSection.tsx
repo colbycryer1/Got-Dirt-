@@ -33,10 +33,11 @@ interface SummaryState {
 }
 
 export default function HaulSessionSection() {
-  const [sessions,   setSessions]   = useState<HaulSession[]>([]);
-  const [tapState,   setTapState]   = useState<Record<string, TapState>>({});
-  const [toggling,   setToggling]   = useState<string | null>(null);
-  const [summaries,  setSummaries]  = useState<Record<string, SummaryState>>({});
+  const [sessions,    setSessions]    = useState<HaulSession[]>([]);
+  const [tapState,    setTapState]    = useState<Record<string, TapState>>({});
+  const [toggling,    setToggling]    = useState<string | null>(null);
+  const [summaries,   setSummaries]   = useState<Record<string, SummaryState>>({});
+  const [startErrors, setStartErrors] = useState<Record<string, string>>({});
 
   const confirmTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const endingRef     = useRef<Record<string, boolean>>({});
@@ -59,14 +60,25 @@ export default function HaulSessionSection() {
 
   async function startSession(orderId: string) {
     setToggling(orderId);
+    setStartErrors((prev) => { const n = { ...prev }; delete n[orderId]; return n; });
     try {
-      const res = await fetch(`/api/haul-orders/${orderId}/pit-session`, {
+      const res  = await fetch(`/api/haul-orders/${orderId}/pit-session`, {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ active: true }),
       });
-      if (res.ok) await poll();
-    } catch {}
+      if (res.ok) {
+        await poll();
+      } else {
+        const data = await res.json() as { error?: string };
+        setStartErrors((prev) => ({
+          ...prev,
+          [orderId]: data.error ?? "Could not start session",
+        }));
+      }
+    } catch {
+      setStartErrors((prev) => ({ ...prev, [orderId]: "Network error — please try again" }));
+    }
     setToggling(null);
   }
 
@@ -257,6 +269,11 @@ export default function HaulSessionSection() {
                 >
                   {isToggling ? "Starting…" : "Start Loading"}
                 </button>
+                {startErrors[s.orderId] && (
+                  <p className="text-xs text-red-400 mt-2 text-center leading-snug">
+                    {startErrors[s.orderId]}
+                  </p>
+                )}
               </div>
             )}
 
