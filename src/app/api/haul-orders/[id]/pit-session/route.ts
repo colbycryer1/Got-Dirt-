@@ -18,6 +18,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     select: {
       pitSessionActive:    true,
       pitSessionStartedAt: true,
+      pitSessionEndedAt:   true,
       pit: {
         select: { latitude: true, longitude: true, geofenceRadiusMeters: true },
       },
@@ -40,6 +41,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   return NextResponse.json({
     active:           order.pitSessionActive,
+    sessionCompleted: order.pitSessionEndedAt !== null,
     pitLat:           order.pit?.latitude ?? null,
     pitLng:           order.pit?.longitude ?? null,
     geofenceMeters:   order.pit?.geofenceRadiusMeters ?? 200,

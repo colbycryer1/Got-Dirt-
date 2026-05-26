@@ -24,8 +24,9 @@ interface OnSiteEntry {
 }
 
 interface SessionState {
-  active:        boolean;
-  pitOwnerCount: number;
+  active:            boolean;
+  pitOwnerCount:     number;
+  sessionCompleted:  boolean;
 }
 
 export default function LiveSessionBanner({ orders, pitIds }: Props) {
@@ -72,8 +73,9 @@ export default function LiveSessionBanner({ orders, pitIds }: Props) {
     results.forEach((result, i) => {
       if (result.status === "fulfilled" && result.value) {
         next[orders[i].id] = {
-          active:        result.value.active ?? false,
-          pitOwnerCount: result.value.pitOwnerCount ?? 0,
+          active:           result.value.active ?? false,
+          pitOwnerCount:    result.value.pitOwnerCount ?? 0,
+          sessionCompleted: result.value.sessionCompleted ?? false,
         };
       }
     });
@@ -131,10 +133,15 @@ export default function LiveSessionBanner({ orders, pitIds }: Props) {
     setLoggingId(null);
   }
 
-  // Show orders that have a driver on-site OR already have an active session
-  const visible = orders.filter(
-    (o) => onSiteMap[o.id] === true || sessionMap[o.id]?.active === true
-  );
+  // Show orders that have a driver on-site (and no completed session yet) OR an active session.
+  // Once a session has been ended for the day, hide the order so the pit owner can't
+  // accidentally start a second session which would reset the load count.
+  const visible = orders.filter((o) => {
+    const sess = sessionMap[o.id];
+    if (sess?.active) return true;
+    if (sess?.sessionCompleted) return false; // session done — hide from banner
+    return onSiteMap[o.id] === true;
+  });
 
   if (visible.length === 0) return null;
 
