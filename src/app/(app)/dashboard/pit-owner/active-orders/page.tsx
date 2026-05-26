@@ -5,6 +5,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import PitOwnerOrderActions from "./PitOwnerOrderActions";
 import OnSitePanel from "./OnSitePanel";
+import PitOwnerAmendmentRespondForm from "../amendments/PitOwnerAmendmentRespondForm";
 
 export const metadata = { title: "Active Orders — Got Dirt?" };
 
@@ -58,6 +59,28 @@ export default async function PitOwnerActiveOrdersPage() {
       })
     : [];
 
+  // Pending amendments on accepted haul orders — pit owner must approve/deny
+  const pendingAmendments = pitIds.length > 0
+    ? await prisma.haulOrderAmendment.findMany({
+        where: {
+          status:           "PENDING",
+          pitOwnerApproved: null,
+          haulOrder:        { pitId: { in: pitIds } },
+        },
+        include: {
+          haulOrder: {
+            include: {
+              pit:     { select: { name: true, state: true } },
+              buyer:   { select: { name: true, company: true } },
+              driver:  { include: { user: { select: { name: true } } } },
+              carrier: { select: { companyName: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+
   // Recent closed haul orders for history
   const closedHaulOrders = pitIds.length > 0
     ? await prisma.haulOrder.findMany({
@@ -108,15 +131,37 @@ export default async function PitOwnerActiveOrdersPage() {
       <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">
         <h1 className="text-2xl font-bold text-gray-900">Active Orders</h1>
 
+        {/* Amendment alert banner */}
+        {pendingAmendments.length > 0 && (
+          <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex items-start gap-3">
+            <span className="text-xl mt-0.5">⚠️</span>
+            <div>
+              <p className="font-bold text-amber-800">
+                {pendingAmendments.length} Amendment{pendingAmendments.length !== 1 ? "s" : ""} Awaiting Your Approval
+              </p>
+              <p className="text-sm text-amber-700 mt-0.5">
+                A buyer has requested extra loads. Review and approve or deny below before haul completion can proceed.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Stats row */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           {[
             { label: "Pending Review",  value: pendingOrders.length },
             { label: "Active Haul",     value: acceptedOrders.length + buyerOpOrders.length },
             { label: "Pit Material",    value: matOrders.length },
+            { label: "Amendments",      value: pendingAmendments.length, highlight: pendingAmendments.length > 0 },
           ].map((s) => (
-            <div key={s.label} className="bg-white rounded-2xl border border-gray-200 p-5 text-center">
-              <p className="text-2xl font-black text-gray-900">{s.value}</p>
+            <div key={s.label} className={`rounded-2xl border p-5 text-center ${
+              "highlight" in s && s.highlight
+                ? "bg-amber-50 border-amber-300"
+                : "bg-white border-gray-200"
+            }`}>
+              <p className={`text-2xl font-black ${"highlight" in s && s.highlight ? "text-amber-700" : "text-gray-900"}`}>
+                {s.value}
+              </p>
               <p className="text-sm text-gray-500 mt-1">{s.label}</p>
             </div>
           ))}
@@ -178,6 +223,84 @@ export default async function PitOwnerActiveOrdersPage() {
             </div>
           )}
         </section>
+
+        {/* ── SECTION: Pending Amendments ────────────────────────────── */}
+        {pendingAmendments.length > 0 && (
+          <section>
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              Amendments Requiring Your Approval ({pendingAmendments.length})
+            </h2>
+            <div className="space-y-4">
+              {pendingAmendments.map((amendment) => {
+                const order      = amendment.haulOrder;
+                const buyerName  = order.buyer.company ?? order.buyer.name ?? "Buyer";
+                const haulerName = order.carrier?.companyName ?? order.driver?.user.name ?? "Hauler";
+                const extraLoads = amendment.requestedLoads - amendment.originalLoads;
+                const fmt = (cents: number) =>
+                  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+
+                return (
+                  <div key={amendment.id} className="bg-white rounded-2xl border-2 border-amber-300 p-5 space-y-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="inline-block w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                          <p className="font-bold text-gray-900">{buyerName}</p>
+                          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-semibold">
+                            Load Amendment
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-0.5">
+                          {order.pit?.name ?? "—"} · {order.pit?.state ?? ""}
+                        </p>
+                        <p className="text-xs text-gray-400">Hauler: {haulerName}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Scheduled:{" "}
+                          {new Date(order.scheduledDate).toLocaleDateString("en-US", {
+                            weekday: "short", month: "short", day: "numeric",
+                          })}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-gray-900">
+                          {amendment.originalLoads} → {amendment.requestedLoads} loads
+                        </p>
+                        <p className="text-xs text-amber-600 font-semibold">
+                          +{extraLoads} extra ({fmt(extraLoads * order.haulRateCents)})
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          @ {fmt(order.haulRateCents)}/load
+                        </p>
+                      </div>
+                    </div>
+
+                    {amendment.reason && (
+                      <div className="bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-600">
+                        <span className="font-semibold text-gray-500 text-xs">Buyer note: </span>
+                        {amendment.reason}
+                      </div>
+                    )}
+
+                    <div className="pt-1 space-y-2">
+                      <p className="text-xs text-gray-500">
+                        Hauler:{" "}
+                        {amendment.haulerApproved === null
+                          ? "Awaiting response"
+                          : amendment.haulerApproved
+                          ? "✓ Approved"
+                          : "✗ Denied"}
+                      </p>
+                      <PitOwnerAmendmentRespondForm
+                        orderId={order.id}
+                        amendmentId={amendment.id}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* ── SECTION: Accepted Haul Orders + On-Site detection ──────── */}
         <OnSitePanel orders={acceptedOrdersForPanel} pitIds={pitIds} />

@@ -21,7 +21,7 @@ export default async function PitOwnerDashboard() {
   });
   const pitIds = pits.map((p) => p.id);
 
-  const [todayLoadEvents, recentSettlements, activeOrders, activeHaulOrders] = await Promise.all([
+  const [todayLoadEvents, recentSettlements, activeOrders, activeHaulOrders, pendingAmendmentCount] = await Promise.all([
     pitIds.length > 0
       ? prisma.loadEvent.findMany({
           where: { pitId: { in: pitIds }, verified: true, disputed: false, createdAt: { gte: today } },
@@ -67,6 +67,16 @@ export default async function PitOwnerDashboard() {
           take: 8,
         })
       : Promise.resolve([]),
+    // Pending amendments needing pit owner approval
+    pitIds.length > 0
+      ? prisma.haulOrderAmendment.count({
+          where: {
+            status:           "PENDING",
+            pitOwnerApproved: null,
+            haulOrder:        { pitId: { in: pitIds } },
+          },
+        })
+      : Promise.resolve(0),
   ]);
 
   const feeSettings = await prisma.platformSettings.findUnique({ where: { id: "singleton" } });
@@ -91,6 +101,27 @@ export default async function PitOwnerDashboard() {
       <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">
         <h1 className="text-2xl font-bold text-gray-900">Pit Owner Dashboard</h1>
 
+        {/* Amendment alert */}
+        {pendingAmendmentCount > 0 && (
+          <Link href="/dashboard/pit-owner/active-orders"
+            className="block bg-amber-50 border border-amber-300 rounded-2xl p-4 hover:bg-amber-100 transition-colors">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">⚠️</span>
+                <div>
+                  <p className="font-bold text-amber-800">
+                    {pendingAmendmentCount} Amendment{pendingAmendmentCount !== 1 ? "s" : ""} Awaiting Your Approval
+                  </p>
+                  <p className="text-sm text-amber-700">
+                    A buyer has requested extra loads — tap to review and approve or deny.
+                  </p>
+                </div>
+              </div>
+              <span className="text-amber-600 font-bold shrink-0">Review →</span>
+            </div>
+          </Link>
+        )}
+
         {/* KPIs */}
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-white rounded-2xl border border-gray-200 p-5 text-center">
@@ -113,20 +144,28 @@ export default async function PitOwnerDashboard() {
         {/* Quick nav */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
+            { href: "/dashboard/pit-owner/active-orders", icon: "📋",  label: "Active Orders",
+              badge: pendingAmendmentCount > 0 ? pendingAmendmentCount : 0 },
             { href: "/dashboard/pit-owner/pits",          icon: "⛏️",  label: "My Pits" },
-            { href: "/dashboard/pit-owner/load-history",  icon: "📋",  label: "Load History" },
+            { href: "/dashboard/pit-owner/load-history",  icon: "🗂️",  label: "Load History" },
             { href: "/dashboard/pit-owner/payout-history",icon: "💰",  label: "Payout History" },
             { href: "/dashboard/pit-owner/analytics",     icon: "📊",  label: "Analytics" },
             { href: "/dashboard/pit-owner/geofence",      icon: "📍",  label: "Geofence Map" },
             { href: "/dashboard/pit-owner/claim",         icon: "🏷️",  label: "Claim a Pit" },
             { href: "/account/stripe",                    icon: "🏦",  label: "Stripe Payouts" },
-            { href: "/dashboard/pit-owner/account",       icon: "👤",  label: "Account" },
           ].map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="bg-white rounded-2xl border border-gray-200 p-4 text-center hover:border-amber-400 transition-colors"
+              className={`relative bg-white rounded-2xl border p-4 text-center hover:border-amber-400 transition-colors ${
+                "badge" in item && item.badge ? "border-amber-300 bg-amber-50" : "border-gray-200"
+              }`}
             >
+              {"badge" in item && (item.badge ?? 0) > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                  {item.badge}
+                </span>
+              )}
               <p className="text-2xl mb-2">{item.icon}</p>
               <p className="text-sm font-semibold text-gray-700">{item.label}</p>
             </Link>
