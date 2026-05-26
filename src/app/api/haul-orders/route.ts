@@ -262,6 +262,8 @@ export async function POST(req: Request) {
       currency:       "usd",
       customer:       customerId,
       capture_method: "manual",
+      // allow_redirects: "never" keeps manual-capture compatible with redirect-based methods
+      automatic_payment_methods: { enabled: true, allow_redirects: "never" },
       metadata: {
         haulOrderId:  order.id,
         orderedBy:    session.user.id,

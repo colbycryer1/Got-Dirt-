@@ -4,6 +4,11 @@ import { useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
+// Initialised once at module level — recreating stripePromise on every render
+// causes Elements to re-initialise and re-validate clientSecret, triggering
+// "The string did not match the expected pattern" in @stripe/stripe-js v9+.
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+
 function DepositInner({ orderId }: { orderId: string }) {
   const stripe   = useStripe();
   const elements = useElements();
@@ -50,13 +55,10 @@ function DepositInner({ orderId }: { orderId: string }) {
 export default function HaulDepositForm({
   clientSecret,
   orderId,
-  publishableKey,
 }: {
   clientSecret: string;
   orderId: string;
-  publishableKey: string;
 }) {
-  const stripePromise = loadStripe(publishableKey);
   return (
     <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: "stripe" } }}>
       <DepositInner orderId={orderId} />

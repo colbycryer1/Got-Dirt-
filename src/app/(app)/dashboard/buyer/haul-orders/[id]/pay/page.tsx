@@ -76,7 +76,6 @@ export default async function HaulDepositPage({
           <HaulDepositForm
             clientSecret={clientSecret}
             orderId={order.id}
-            publishableKey={process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!}
           />
         </div>
       </div>
