@@ -22,7 +22,7 @@ export default async function PitOwnerDashboard() {
   });
   const pitIds = pits.map((p) => p.id);
 
-  const [todayLoadEvents, recentSettlements, activeOrders, activeHaulOrders, pendingAmendmentCount, sessionOrders] = await Promise.all([
+  const [todayLoadEvents, recentSettlements, activeOrders, activeHaulOrders, pendingAmendmentCount, sessionOrders, todayHaulLogs] = await Promise.all([
     pitIds.length > 0
       ? prisma.loadEvent.findMany({
           where: { pitId: { in: pitIds }, verified: true, disputed: false, createdAt: { gte: today } },
@@ -94,6 +94,18 @@ export default async function PitOwnerDashboard() {
           },
         })
       : Promise.resolve([]),
+    // Today's haul order tap logs at this owner's pits
+    pitIds.length > 0
+      ? prisma.pitOwnerLoadLog.findMany({
+          where: {
+            loggedAt:  { gte: today },
+            haulOrder: { pitId: { in: pitIds } },
+          },
+          select: {
+            haulOrder: { select: { haulRateCents: true } },
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   // Shape for LiveSessionBanner
@@ -107,11 +119,22 @@ export default async function PitOwnerDashboard() {
   }));
 
   const feeSettings = await prisma.platformSettings.findUnique({ where: { id: "singleton" } });
-  const feePercent = feeSettings?.feePercent ?? 8.0;
+  const feePercent     = feeSettings?.feePercent     ?? 8.0;
+  const haulFeePercent = feeSettings?.haulFeePercent ?? 10.0;
 
-  const todayLoads = todayLoadEvents.length;
-  const todayGrossCents = todayLoadEvents.reduce((s, l) => s + l.rateCentsAtTime, 0);
-  const todayEstimatedPayout = Math.round(todayGrossCents * (1 - feePercent / 100));
+  // Material order loads (LoadEvent)
+  const materialLoads      = todayLoadEvents.length;
+  const materialGrossCents = todayLoadEvents.reduce((s, l) => s + l.rateCentsAtTime, 0);
+  const materialPayout     = Math.round(materialGrossCents * (1 - feePercent / 100));
+
+  // Haul order loads (PitOwnerLoadLog) — use haulRateCents per tap
+  const haulLoads      = todayHaulLogs.length;
+  const haulGrossCents = todayHaulLogs.reduce((s, l) => s + l.haulOrder.haulRateCents, 0);
+  const haulPayout     = Math.round(haulGrossCents * (1 - haulFeePercent / 100));
+
+  const todayLoads           = materialLoads + haulLoads;
+  const todayGrossCents      = materialGrossCents + haulGrossCents;
+  const todayEstimatedPayout = materialPayout + haulPayout;
 
   return (
     <div className="min-h-screen bg-gray-50">
