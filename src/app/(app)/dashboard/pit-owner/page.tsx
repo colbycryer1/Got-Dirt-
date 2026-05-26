@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { centsToDisplay } from "@/types";
 import LogoutButton from "@/components/LogoutButton";
+import LiveSessionBanner from "./LiveSessionBanner";
 
 export default async function PitOwnerDashboard() {
   const session = await getServerSession(authOptions);
@@ -21,7 +22,7 @@ export default async function PitOwnerDashboard() {
   });
   const pitIds = pits.map((p) => p.id);
 
-  const [todayLoadEvents, recentSettlements, activeOrders, activeHaulOrders, pendingAmendmentCount] = await Promise.all([
+  const [todayLoadEvents, recentSettlements, activeOrders, activeHaulOrders, pendingAmendmentCount, sessionOrders] = await Promise.all([
     pitIds.length > 0
       ? prisma.loadEvent.findMany({
           where: { pitId: { in: pitIds }, verified: true, disputed: false, createdAt: { gte: today } },
@@ -77,7 +78,33 @@ export default async function PitOwnerDashboard() {
           },
         })
       : Promise.resolve(0),
+    // Accepted haul orders eligible for session management (feeds LiveSessionBanner)
+    pitIds.length > 0
+      ? prisma.haulOrder.findMany({
+          where: {
+            pitId:            { in: pitIds },
+            pitOwnerApproved: true,
+            status:           { in: ["CONFIRMED", "ACTIVE"] },
+          },
+          include: {
+            pit:     { select: { name: true } },
+            buyer:   { select: { name: true, company: true } },
+            driver:  { include: { user: { select: { name: true } } } },
+            carrier: { select: { companyName: true } },
+          },
+        })
+      : Promise.resolve([]),
   ]);
+
+  // Shape for LiveSessionBanner
+  const sessionOrdersForBanner = sessionOrders.map((o) => ({
+    id:         o.id,
+    pitId:      o.pitId ?? "",
+    loads:      o.loads,
+    pitName:    o.pit?.name ?? "Pit",
+    buyerName:  o.buyer.company ?? o.buyer.name ?? "Buyer",
+    haulerName: o.carrier?.companyName ?? o.driver?.user.name ?? "Hauler",
+  }));
 
   const feeSettings = await prisma.platformSettings.findUnique({ where: { id: "singleton" } });
   const feePercent = feeSettings?.feePercent ?? 8.0;
@@ -99,6 +126,10 @@ export default async function PitOwnerDashboard() {
       </nav>
 
       <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">
+
+        {/* Live session banner — appears when a driver is on-site or a session is active */}
+        <LiveSessionBanner orders={sessionOrdersForBanner} pitIds={pitIds} />
+
         <h1 className="text-2xl font-bold text-gray-900">Pit Owner Dashboard</h1>
 
         {/* Amendment alert */}
