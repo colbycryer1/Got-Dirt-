@@ -152,13 +152,21 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       pitSessionStartedBy: session.user.id,
     };
   } else {
-    // Ending a session — compute COB deadline and record actual loads
-    const sessionCount = await prisma.pitOwnerLoadLog.count({
-      where: {
-        haulOrderId: params.id,
-        ...(order.pitSessionStartedAt ? { loggedAt: { gte: order.pitSessionStartedAt } } : {}),
-      },
-    });
+    // Ending a session — record both pit owner and driver counts, compute COB deadline
+    const [sessionCount, driverSessionCount] = await Promise.all([
+      prisma.pitOwnerLoadLog.count({
+        where: {
+          haulOrderId: params.id,
+          ...(order.pitSessionStartedAt ? { loggedAt: { gte: order.pitSessionStartedAt } } : {}),
+        },
+      }),
+      prisma.driverLoadLog.count({
+        where: {
+          haulOrderId: params.id,
+          ...(order.pitSessionStartedAt ? { loggedAt: { gte: order.pitSessionStartedAt } } : {}),
+        },
+      }),
+    ]);
 
     const cobDueAt   = getCobDueAt(pit.state, now);
     const afterHours = isAfterCOB(pit.state, now);
@@ -171,7 +179,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     updateData = {
       pitSessionActive:    false,
       pitSessionEndedAt:   now,
-      actualLoads:         sessionCount,
+      actualLoads:         sessionCount,       // pit owner count — authoritative for billing
+      driverActualLoads:   driverSessionCount, // driver GPS count — stored for transparency
       cobDueAt,
       afterHoursFeeCents,
       ...(overageLoads > 0 ? {

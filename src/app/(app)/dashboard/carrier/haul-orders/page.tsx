@@ -3,9 +3,8 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { getPitOwnerLoadLogCounts, getDriverLoadLogCounts } from "@/lib/haul-load-log";
 import RespondForm from "@/app/(app)/dashboard/driver/haul-orders/RespondForm";
-import AmendmentRespondForm from "@/app/(app)/dashboard/driver/haul-orders/AmendmentRespondForm";
-import { getPitOwnerLoadLogCounts } from "@/lib/haul-load-log";
 
 export const metadata = { title: "Haul Orders — Got Dirt?" };
 
@@ -17,6 +16,10 @@ const statusColors: Record<string, string> = {
   COMPLETED: "bg-gray-100 text-gray-500",
   CANCELLED: "bg-gray-100 text-gray-400",
 };
+
+function fmt(cents: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+}
 
 export default async function CarrierHaulOrdersPage({
   searchParams,
@@ -33,10 +36,6 @@ export default async function CarrierHaulOrdersPage({
       buyer:   { select: { name: true, company: true, phone: true, email: true } },
       pit:     { select: { name: true, address: true, state: true } },
       project: { select: { name: true } },
-      amendments: {
-        where: { status: "PENDING", haulerApproved: null },
-        take:  1,
-      },
     },
     orderBy: [{ status: "asc" }, { scheduledDate: "asc" }],
   });
@@ -44,7 +43,11 @@ export default async function CarrierHaulOrdersPage({
   const liveOrders = orders.filter(
     (o) => o.pitId && (o.status === "CONFIRMED" || o.status === "ACTIVE")
   );
-  const loadLogCounts = await getPitOwnerLoadLogCounts(liveOrders.map((o) => o.id));
+  const liveIds = liveOrders.map((o) => o.id);
+  const [pitCounts, driverCounts] = await Promise.all([
+    getPitOwnerLoadLogCounts(liveIds),
+    getDriverLoadLogCounts(liveIds),
+  ]);
 
   const respondOrderId = searchParams.respond;
 
@@ -71,10 +74,17 @@ export default async function CarrierHaulOrdersPage({
         ) : (
           <div className="space-y-4">
             {orders.map((o) => {
-              const isResponding   = respondOrderId === o.id;
-              const logCount       = loadLogCounts[o.id];
-              const hasLiveCount   = logCount !== undefined;
-              const payoutEstimate = o.haulerPayoutCents > 0 ? o.haulerPayoutCents : o.loads * o.haulRateCents * 0.9;
+              const isResponding = respondOrderId === o.id;
+              const feePercent   = o.platformFeePercent > 0 ? o.platformFeePercent : 10.0;
+              const isCompleted  = o.status === "COMPLETED" && o.actualLoads != null;
+              const isLive       = o.status === "CONFIRMED" || o.status === "ACTIVE";
+              const pitCount     = pitCounts[o.id];
+              const driverCount  = driverCounts[o.id];
+              const hasPitCount  = pitCount !== undefined;
+
+              const estimateBase   = hasPitCount ? pitCount : o.loads;
+              const payoutEstimate = Math.round(estimateBase * o.haulRateCents * (1 - feePercent / 100));
+
               return (
                 <div
                   key={o.id}
@@ -105,42 +115,66 @@ export default async function CarrierHaulOrdersPage({
                         </p>
                       )}
                     </div>
-                    <div className="text-right shrink-0">
-                      {hasLiveCount ? (
+
+                    {/* ── Right column: loads + earnings ── */}
+                    <div className="text-right shrink-0 space-y-0.5">
+                      {isCompleted ? (
                         <>
                           <p className="text-lg font-bold text-gray-900">
-                            {logCount} load{logCount !== 1 ? "s" : ""}
+                            {o.actualLoads} load{o.actualLoads !== 1 ? "s" : ""}
                           </p>
-                          <p className="text-xs text-blue-600 font-semibold">Live from Load Log</p>
-                          {logCount !== o.loads && (
+                          {o.actualLoads !== o.loads && (
                             <p className="text-xs text-gray-400 line-through">{o.loads} est.</p>
                           )}
+                          <p className="text-xs text-gray-400">
+                            {o.actualLoads} × {fmt(o.haulRateCents)} = {fmt(o.actualLoads! * o.haulRateCents)}
+                          </p>
+                          <p className="text-xs text-gray-400">−{feePercent}% fee = {fmt(o.platformFeeCents)} kept by platform</p>
+                          <p className="text-sm font-black text-green-700">{fmt(o.haulerPayoutCents)} earned</p>
+                          {o.driverActualLoads != null && o.driverActualLoads !== o.actualLoads && (
+                            <p className="text-xs text-amber-600">
+                              Driver GPS count: {o.driverActualLoads} · Pit count: {o.actualLoads} (used for billing)
+                            </p>
+                          )}
+                        </>
+                      ) : isLive && hasPitCount ? (
+                        <>
+                          <p className="text-lg font-bold text-gray-900">
+                            {pitCount} load{pitCount !== 1 ? "s" : ""}
+                          </p>
+                          <p className="text-xs text-blue-600 font-semibold">Pit Log (live)</p>
+                          {driverCount !== undefined && driverCount !== pitCount && (
+                            <p className="text-xs text-gray-400">Driver GPS: {driverCount}</p>
+                          )}
+                          {pitCount !== o.loads && (
+                            <p className="text-xs text-gray-400 line-through">{o.loads} est.</p>
+                          )}
+                          <p className="text-xs text-gray-400">~{fmt(payoutEstimate)} est. earned</p>
                         </>
                       ) : (
                         <>
                           <p className="text-lg font-bold text-gray-900">{o.loads} load{o.loads !== 1 ? "s" : ""}</p>
-                          <p className="text-xs text-gray-400">est. @ ${(o.haulRateCents / 100).toFixed(2)}</p>
+                          <p className="text-xs text-gray-400">est. @ {fmt(o.haulRateCents)}/load</p>
+                          <p className="text-xs text-gray-400">~{fmt(payoutEstimate)} est. earned</p>
                         </>
-                      )}
-                      {o.status === "COMPLETED" && o.actualLoads != null ? (
-                        <p className="text-sm font-bold text-green-700">
-                          ${(o.haulerPayoutCents / 100).toFixed(2)} earned
-                        </p>
-                      ) : (
-                        <p className="text-xs text-gray-400">
-                          ~${(payoutEstimate / 100).toFixed(2)} payout
-                        </p>
                       )}
                     </div>
                   </div>
 
-                  {/* Live load log detail for confirmed/active */}
-                  {hasLiveCount && o.pit && (
-                    <div className={`rounded-xl px-4 py-2.5 text-xs flex items-center gap-2 ${logCount > 0 ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-500"}`}>
-                      <span className={`inline-block w-2 h-2 rounded-full ${logCount > 0 ? "bg-blue-500 animate-pulse" : "bg-gray-300"}`} />
-                      {logCount > 0
-                        ? `${logCount} load${logCount !== 1 ? "s" : ""} logged at ${o.pit.name} — your count updates as the pit operator logs`
-                        : `No loads logged yet at ${o.pit.name}. Count updates automatically as the pit operator records loads.`}
+                  {/* Live load detail strip */}
+                  {isLive && hasPitCount && o.pit && (
+                    <div className={`rounded-xl px-4 py-2.5 text-xs flex items-center gap-2 ${pitCount > 0 ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-500"}`}>
+                      <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${pitCount > 0 ? "bg-blue-500 animate-pulse" : "bg-gray-300"}`} />
+                      <span>
+                        {pitCount > 0
+                          ? `${pitCount} load${pitCount !== 1 ? "s" : ""} logged at ${o.pit.name} by pit operator`
+                          : `Waiting for pit operator to start logging at ${o.pit.name}`}
+                      </span>
+                      {driverCount !== undefined && driverCount > 0 && (
+                        <span className="ml-auto font-semibold text-blue-600">
+                          Driver GPS: {driverCount}
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -174,16 +208,6 @@ export default async function CarrierHaulOrdersPage({
                         </Link>
                       </div>
                     )
-                  )}
-
-                  {/* Amendment response — hauler hasn't responded yet */}
-                  {o.amendments.length > 0 && (
-                    <div className="pt-3 border-t border-amber-100">
-                      <AmendmentRespondForm
-                        orderId={o.id}
-                        amendment={o.amendments[0]}
-                      />
-                    </div>
                   )}
                 </div>
               );

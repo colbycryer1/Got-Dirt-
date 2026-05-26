@@ -759,7 +759,8 @@ model HaulOrder {
 
   scheduledDate       DateTime
   loads               Int  // estimated loads at order placement
-  actualLoads         Int? // actual loads on completion (null until completed)
+  actualLoads         Int? // actual loads on completion — authoritative pit owner session count
+  driverActualLoads   Int? // driver's own GPS tap count from same session (stored for transparency)
   haulRateCents       Int  // rate locked at order placement
   totalEstimatedCents Int
   depositHoldCents    Int  // partial card hold amount

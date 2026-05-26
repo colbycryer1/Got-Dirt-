@@ -38,6 +38,38 @@ export async function getPitOwnerLoadLogCounts(
 }
 
 /**
+ * Returns driver GPS tap counts from DriverLoadLog keyed by haulOrderId,
+ * scoped to the current session (loggedAt >= pitSessionStartedAt).
+ */
+export async function getDriverLoadLogCounts(
+  haulOrderIds: string[]
+): Promise<Record<string, number>> {
+  if (haulOrderIds.length === 0) return {};
+
+  const orders = await prisma.haulOrder.findMany({
+    where:  { id: { in: haulOrderIds } },
+    select: { id: true, pitSessionStartedAt: true },
+  });
+
+  const sessionStarts: Record<string, Date | null> = {};
+  for (const o of orders) sessionStarts[o.id] = o.pitSessionStartedAt;
+
+  const logs = await prisma.driverLoadLog.findMany({
+    where:  { haulOrderId: { in: haulOrderIds } },
+    select: { haulOrderId: true, loggedAt: true },
+  });
+
+  const counts: Record<string, number> = {};
+  for (const log of logs) {
+    const start = sessionStarts[log.haulOrderId];
+    if (!start || log.loggedAt >= start) {
+      counts[log.haulOrderId] = (counts[log.haulOrderId] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+
+/**
  * Legacy: counts LoadEvents on pit material Orders bridged via pit+buyer+date.
  * Kept for reference — callers should prefer getPitOwnerLoadLogCounts().
  */
