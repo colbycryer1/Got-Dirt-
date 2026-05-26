@@ -271,8 +271,6 @@ model Project {
 
   name        String
   location    String?   // human-readable job site address
-  latitude    Float?
-  longitude   Float?
   description String?
 
   // Accounting export fields (all optional, buyer-entered)

@@ -6,13 +6,11 @@ import Link from "next/link";
 
 export default function NewProjectPage() {
   const router = useRouter();
-  const [name, setName]             = useState("");
-  const [location, setLocation]     = useState("");
-  const [latitude, setLatitude]     = useState("");
-  const [longitude, setLongitude]   = useState("");
+  const [name, setName]               = useState("");
+  const [location, setLocation]       = useState("");
   const [description, setDescription] = useState("");
-  const [saving, setSaving]         = useState(false);
-  const [error, setError]           = useState("");
+  const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,12 +25,10 @@ export default function NewProjectPage() {
           name:        name.trim(),
           location:    location.trim(),
           description: description.trim() || undefined,
-          latitude:    latitude.trim()  ? parseFloat(latitude.trim())  : undefined,
-          longitude:   longitude.trim() ? parseFloat(longitude.trim()) : undefined,
         }),
       });
       if (!res.ok) {
-        const d = await res.json();
+        const d = await res.json().catch(() => ({}));
         setError(d.error ?? "Failed to create project");
         return;
       }
@@ -75,38 +71,7 @@ export default function NewProjectPage() {
               onChange={(e) => setLocation(e.target.value)}
               required
             />
-            <p className="text-xs text-gray-400 mt-1">Drivers will use this address for navigation.</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Coordinates (optional)</label>
-            <p className="text-xs text-gray-400 mb-2">
-              Paste from Google Maps for precise navigation. Right-click a location → copy coordinates.
-            </p>
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <label className="block text-xs text-gray-500 mb-1">Latitude</label>
-                <input
-                  type="number"
-                  step="any"
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  placeholder="33.7490"
-                  value={latitude}
-                  onChange={(e) => setLatitude(e.target.value)}
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs text-gray-500 mb-1">Longitude</label>
-                <input
-                  type="number"
-                  step="any"
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  placeholder="-84.3880"
-                  value={longitude}
-                  onChange={(e) => setLongitude(e.target.value)}
-                />
-              </div>
-            </div>
+            <p className="text-xs text-gray-400 mt-1">Drivers tap this address for turn-by-turn navigation.</p>
           </div>
 
           <div>

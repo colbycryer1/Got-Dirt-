@@ -21,28 +21,11 @@ function fmt(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
-function DirectionsCard({
-  label,
-  address,
-  latitude,
-  longitude,
-}: {
-  label:     string;
-  address:   string;
-  latitude?: number;
-  longitude?: number;
-}) {
-  const destEnc = latitude != null && longitude != null
-    ? `${latitude},${longitude}`
-    : encodeURIComponent(address);
-
-  const googleUrl = `https://www.google.com/maps/dir/?api=1&destination=${destEnc}`;
-  const appleUrl  = latitude != null && longitude != null
-    ? `https://maps.apple.com/?daddr=${latitude},${longitude}&dirflg=d`
-    : `https://maps.apple.com/?daddr=${encodeURIComponent(address)}&dirflg=d`;
-  const wazeUrl   = latitude != null && longitude != null
-    ? `https://waze.com/ul?ll=${latitude},${longitude}&navigate=yes`
-    : `https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes`;
+function DirectionsCard({ label, address }: { label: string; address: string }) {
+  const enc       = encodeURIComponent(address);
+  const googleUrl = `https://www.google.com/maps/dir/?api=1&destination=${enc}`;
+  const appleUrl  = `https://maps.apple.com/?daddr=${enc}&dirflg=d`;
+  const wazeUrl   = `https://waze.com/ul?q=${enc}&navigate=yes`;
 
   return (
     <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 space-y-2">
@@ -105,7 +88,7 @@ export default async function CarrierHaulOrdersPage({
     include: {
       buyer:   { select: { name: true, company: true, phone: true, email: true } },
       pit:     { select: { name: true, address: true, state: true } },
-      project: { select: { name: true, location: true, latitude: true, longitude: true } },
+      project: { select: { name: true, location: true } },
     },
     orderBy: [{ status: "asc" }, { scheduledDate: "asc" }],
   });
@@ -257,8 +240,6 @@ export default async function CarrierHaulOrdersPage({
                     <DirectionsCard
                       label={o.project.name ?? "Job Site"}
                       address={o.project.location}
-                      latitude={o.project.latitude ?? undefined}
-                      longitude={o.project.longitude ?? undefined}
                     />
                   )}
 

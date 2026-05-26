@@ -15,7 +15,7 @@ export default async function EditProjectPage({ params }: { params: { id: string
 
   const project = await prisma.project.findUnique({
     where:  { id: params.id },
-    select: { id: true, buyerUserId: true, name: true, location: true, latitude: true, longitude: true, description: true },
+    select: { id: true, buyerUserId: true, name: true, location: true, description: true },
   });
 
   if (!project) notFound();

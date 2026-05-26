@@ -8,15 +8,16 @@ const updateSchema = z.object({
   name:        z.string().min(1).optional(),
   location:    z.string().min(1).optional(),
   description: z.string().optional(),
-  latitude:    z.number().nullable().optional(),
-  longitude:   z.number().nullable().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const project = await prisma.project.findUnique({ where: { id: params.id } });
+  const project = await prisma.project.findUnique({
+    where:  { id: params.id },
+    select: { buyerUserId: true },
+  });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (session.user.role !== "ADMIN" && project.buyerUserId !== session.user.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -29,11 +30,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const updated = await prisma.project.update({
     where: { id: params.id },
     data: {
-      ...(parsed.data.name      !== undefined && { name:      parsed.data.name }),
-      ...(parsed.data.location  !== undefined && { location:  parsed.data.location }),
+      ...(parsed.data.name        !== undefined && { name:        parsed.data.name }),
+      ...(parsed.data.location    !== undefined && { location:    parsed.data.location }),
       ...(parsed.data.description !== undefined && { description: parsed.data.description }),
-      ...(parsed.data.latitude  !== undefined && { latitude:  parsed.data.latitude }),
-      ...(parsed.data.longitude !== undefined && { longitude: parsed.data.longitude }),
     },
   });
 
