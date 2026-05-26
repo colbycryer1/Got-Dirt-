@@ -36,6 +36,7 @@ const statusColors: Record<string, string> = {
 
 export default function OnSitePanel({ orders, pitIds }: Props) {
   const [onSiteMap,    setOnSiteMap]    = useState<Record<string, boolean>>({});
+  const [manualMap,    setManualMap]    = useState<Record<string, boolean>>({});
   const [sessionMap,   setSessionMap]   = useState<Record<string, SessionState>>({});
   const [loggingId,    setLoggingId]    = useState<string | null>(null);
   const [togglingId,   setTogglingId]   = useState<string | null>(null);
@@ -53,14 +54,17 @@ export default function OnSitePanel({ orders, pitIds }: Props) {
         )
       );
       const merged: Record<string, boolean> = {};
+      const manualMerged: Record<string, boolean> = {};
       for (const result of results) {
         if (result.status === "fulfilled" && result.value?.onSite) {
-          for (const entry of result.value.onSite as Array<{ orderId: string }>) {
+          for (const entry of result.value.onSite as Array<{ orderId: string; manual: boolean }>) {
             merged[entry.orderId] = true;
+            if (entry.manual) manualMerged[entry.orderId] = true;
           }
         }
       }
       setOnSiteMap(merged);
+      setManualMap(manualMerged);
     }
 
     pollOnSite();
@@ -151,6 +155,7 @@ export default function OnSitePanel({ orders, pitIds }: Props) {
       <div className="space-y-3">
         {orders.map((order) => {
           const isOnSite  = onSiteMap[order.id] === true;
+          const isManual  = manualMap[order.id]  === true;
           const session   = sessionMap[order.id];
           const sessActive = session?.active ?? false;
           const pitCount   = session?.pitOwnerCount ?? 0;
@@ -175,7 +180,7 @@ export default function OnSitePanel({ orders, pitIds }: Props) {
                     </span>
                     {isOnSite && (
                       <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full font-bold animate-pulse">
-                        🚛 On Site — arrived
+                        🚛 On Site{isManual ? " — Manual Check-In" : " — arrived"}
                       </span>
                     )}
                   </div>

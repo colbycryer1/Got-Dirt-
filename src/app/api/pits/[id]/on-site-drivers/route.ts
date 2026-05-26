@@ -43,7 +43,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       status:   { in: ["CONFIRMED", "ACTIVE"] },
       driverId: { not: null },
     },
-    include: {
+    select: {
+      id:                    true,
+      driverManualArrival:   true,
+      driverManualArrivalAt: true,
       driver: {
         select: {
           id:                  true,
@@ -58,34 +61,58 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   });
 
   const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+  // Manual arrival stays valid for 8 hours (covers a full working shift)
+  const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000);
 
   const onSite: Array<{
     orderId:         string;
     driverProfileId: string;
     driverName:      string;
     distanceMeters:  number;
+    manual:          boolean;
   }> = [];
 
   for (const order of orders) {
     const driver = order.driver;
     if (!driver) continue;
-    if (!driver.liveLocationEnabled) continue;
-    if (driver.currentLat == null || driver.currentLng == null) continue;
-    if (!driver.lastLocationAt || driver.lastLocationAt < twoMinutesAgo) continue;
 
-    const dist = haversineMeters(
-      pitData.latitude,
-      pitData.longitude,
-      driver.currentLat,
-      driver.currentLng,
-    );
+    // Path 1 — GPS geofence
+    const hasRecentGps =
+      driver.liveLocationEnabled &&
+      driver.currentLat != null &&
+      driver.currentLng != null &&
+      driver.lastLocationAt != null &&
+      driver.lastLocationAt >= twoMinutesAgo;
 
-    if (dist <= pitData.geofenceRadiusMeters) {
+    if (hasRecentGps && driver.currentLat != null && driver.currentLng != null) {
+      const dist = haversineMeters(
+        pitData.latitude, pitData.longitude,
+        driver.currentLat, driver.currentLng,
+      );
+      if (dist <= pitData.geofenceRadiusMeters) {
+        onSite.push({
+          orderId:         order.id,
+          driverProfileId: driver.id,
+          driverName:      driver.user.name ?? "Driver",
+          distanceMeters:  Math.round(dist),
+          manual:          false,
+        });
+        continue; // GPS confirmed — no need to check manual flag
+      }
+    }
+
+    // Path 2 — manual arrival button (failsafe)
+    if (
+      order.driverManualArrival &&
+      order.driverManualArrivalAt &&
+      order.driverManualArrivalAt >= eightHoursAgo
+    ) {
       onSite.push({
         orderId:         order.id,
         driverProfileId: driver.id,
         driverName:      driver.user.name ?? "Driver",
-        distanceMeters:  Math.round(dist),
+        distanceMeters:  0,
+        manual:          true,
       });
     }
   }

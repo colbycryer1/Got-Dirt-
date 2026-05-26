@@ -42,6 +42,9 @@ export default function GpsLoadLogButton({ locationEnabled, activeOrders }: Prop
   const [pendingConfirm, setPendingConfirm] = useState(false);
   const [sessionActive,  setSessionActive]  = useState(false);
   const [pitOwnerCount,  setPitOwnerCount]  = useState(0);
+  // Manual arrival failsafe — keyed by orderId
+  const [manualArrived,  setManualArrived]  = useState<Record<string, boolean>>({});
+  const [arrivalLoading, setArrivalLoading] = useState(false);
 
   const watchIdRef      = useRef<number | null>(null);
   const heartbeatRef    = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -114,25 +117,53 @@ export default function GpsLoadLogButton({ locationEnabled, activeOrders }: Prop
   }, [activeOrders]);
 
   // Derived state
-  const selectedOrder = activeOrders.find((o) => o.id === orderId);
-  const isStationary  = speed === null || speed < SPEED_THRESHOLD_MS;
+  const selectedOrder  = activeOrders.find((o) => o.id === orderId);
+  const isStationary   = speed === null || speed < SPEED_THRESHOLD_MS;
+  const arrivedManually = manualArrived[orderId] === true;
 
   const distanceToPit = (lat !== null && lng !== null && selectedOrder?.pitLat && selectedOrder?.pitLng)
     ? haversineMeters(lat, lng, selectedOrder.pitLat, selectedOrder.pitLng)
     : null;
   const withinGeofence = distanceToPit !== null && distanceToPit <= (selectedOrder?.geofenceMeters ?? 200);
 
-  const canLog = locationEnabled && isStationary && withinGeofence && sessionActive && !!orderId;
+  // Manual arrival bypasses both the geofence and location-enabled gates
+  const atPit  = withinGeofence || arrivedManually;
+  const canLog = isStationary && atPit && sessionActive && !!orderId;
   const myCount = orderId ? (driverCount[orderId] ?? 0) : 0;
 
   function gateMessage(): string {
+    if (arrivedManually && !sessionActive) return "Manual arrival confirmed — waiting for pit operator to start your session";
+    if (arrivedManually && !isStationary)  return "Moving — stop the truck to log a load";
+    if (arrivedManually)                   return "Ready — tap twice to confirm each load";
     if (!locationEnabled)   return "Enable live location above to unlock";
-    if (!withinGeofence)    return distanceToPit !== null
+    if (!atPit)             return distanceToPit !== null
       ? `${Math.round(distanceToPit)}m from pit — drive to the pit to unlock`
       : "Acquiring GPS position…";
     if (!sessionActive)     return "Waiting for pit operator to start your load session";
     if (!isStationary)      return "Moving — stop the truck to log a load";
     return "Ready — tap twice to confirm each load";
+  }
+
+  async function handleManualArrive() {
+    if (!orderId || arrivalLoading) return;
+    setArrivalLoading(true);
+    try {
+      const res = await fetch(`/api/haul-orders/${orderId}/arrive`, { method: "POST" });
+      if (res.ok) {
+        setManualArrived((prev) => ({ ...prev, [orderId]: true }));
+        // Immediately re-poll session so any active session is picked up
+        pollSession();
+      }
+    } catch {}
+    setArrivalLoading(false);
+  }
+
+  async function handleClearArrival() {
+    if (!orderId) return;
+    try {
+      await fetch(`/api/haul-orders/${orderId}/arrive`, { method: "DELETE" });
+      setManualArrived((prev) => ({ ...prev, [orderId]: false }));
+    } catch {}
   }
 
   async function handleLogTap() {
@@ -203,12 +234,20 @@ export default function GpsLoadLogButton({ locationEnabled, activeOrders }: Prop
           {locationEnabled ? "GPS On" : "GPS Off"}
         </span>
 
-        {locationEnabled && (
-          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold
-            ${withinGeofence ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
-            {withinGeofence ? "At Pit" : distanceToPit !== null ? `${Math.round(distanceToPit)}m away` : "Locating…"}
-          </span>
-        )}
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold
+          ${atPit
+            ? arrivedManually
+              ? "bg-teal-100 text-teal-700"
+              : "bg-blue-100 text-blue-700"
+            : "bg-gray-100 text-gray-500"
+          }`}>
+          {atPit
+            ? arrivedManually ? "At Pit (Manual)" : "At Pit"
+            : locationEnabled
+              ? distanceToPit !== null ? `${Math.round(distanceToPit)}m away` : "Locating…"
+              : "GPS Off"
+          }
+        </span>
 
         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold
           ${sessionActive ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
@@ -221,6 +260,38 @@ export default function GpsLoadLogButton({ locationEnabled, activeOrders }: Prop
           {isStationary ? "Stopped" : speed !== null ? `${(speed * 2.237).toFixed(1)} mph` : "Moving"}
         </span>
       </div>
+
+      {/* Manual arrival failsafe — shown when GPS has not placed driver at the pit */}
+      {!withinGeofence && !!orderId && (
+        arrivedManually ? (
+          <div className="flex items-center justify-between gap-2 bg-teal-50 border border-teal-200 rounded-xl px-4 py-2.5">
+            <div className="flex items-center gap-2 text-xs text-teal-700 font-semibold">
+              <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse shrink-0" />
+              Manual arrival confirmed — GPS override active
+            </div>
+            <button
+              onClick={handleClearArrival}
+              className="text-xs text-teal-600 underline hover:text-teal-800"
+            >
+              Clear
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <button
+              onClick={handleManualArrive}
+              disabled={arrivalLoading}
+              className="w-full rounded-xl border-2 border-dashed border-gray-300 py-3 text-sm font-semibold text-gray-500 hover:border-teal-400 hover:text-teal-700 hover:bg-teal-50 disabled:opacity-50 transition-colors"
+              style={{ touchAction: "manipulation" }}
+            >
+              {arrivalLoading ? "Confirming…" : "I've Arrived at the Pit"}
+            </button>
+            <p className="text-xs text-gray-400 text-center">
+              GPS not detecting you? Tap above to manually signal your arrival to the pit operator.
+            </p>
+          </div>
+        )
+      )}
 
       {lastLogged && <p className="text-xs text-green-600 font-semibold">Last logged at {lastLogged}</p>}
 

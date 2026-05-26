@@ -794,6 +794,9 @@ model HaulOrder {
   pitSessionStartedAt   DateTime?
   pitSessionStartedBy   String?   // pit owner userId
 
+  driverManualArrival   Boolean   @default(false)
+  driverManualArrivalAt DateTime?
+
   amendments       HaulOrderAmendment[]
   driverLoadLogs   DriverLoadLog[]
   pitOwnerLoadLogs PitOwnerLoadLog[]

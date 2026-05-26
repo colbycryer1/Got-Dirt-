@@ -17,8 +17,9 @@ interface Props {
 }
 
 interface OnSiteEntry {
-  orderId:       string;
+  orderId:        string;
   distanceMeters: number;
+  manual:         boolean;
 }
 
 interface SessionState {
@@ -28,6 +29,7 @@ interface SessionState {
 
 export default function LiveSessionBanner({ orders, pitIds }: Props) {
   const [onSiteMap,  setOnSiteMap]  = useState<Record<string, boolean>>({});
+  const [manualMap,  setManualMap]  = useState<Record<string, boolean>>({});
   const [sessionMap, setSessionMap] = useState<Record<string, SessionState>>({});
   const [loggingId,  setLoggingId]  = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -42,14 +44,17 @@ export default function LiveSessionBanner({ orders, pitIds }: Props) {
       )
     );
     const merged: Record<string, boolean> = {};
+    const manualMerged: Record<string, boolean> = {};
     for (const result of results) {
       if (result.status === "fulfilled" && result.value?.onSite) {
         for (const entry of result.value.onSite as OnSiteEntry[]) {
           merged[entry.orderId] = true;
+          if (entry.manual) manualMerged[entry.orderId] = true;
         }
       }
     }
     setOnSiteMap(merged);
+    setManualMap(manualMerged);
   }, [pitIds]);
 
   const pollSessions = useCallback(async () => {
@@ -160,11 +165,16 @@ export default function LiveSessionBanner({ orders, pitIds }: Props) {
                   </>
                 ) : (
                   <>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
                       <p className="font-bold text-amber-800">
                         {order.haulerName} is on site — {order.pitName}
                       </p>
+                      {manualMap[order.id] && (
+                        <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full font-semibold">
+                          Manual Check-In
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-amber-700 mt-0.5">
                       {order.buyerName} · {order.loads} est. load{order.loads !== 1 ? "s" : ""} — start the session to begin tracking
