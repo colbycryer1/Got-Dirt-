@@ -55,6 +55,7 @@ async function runHaulCOBSettlement(): Promise<SettleResult[]> {
       cobDueAt:               true,
       overagePendingAt:       true,
       overageApproved:        true,
+      buyerOperating:         true,
       buyer: {
         select: { stripeCustomerId: true, defaultPaymentMethodId: true, email: true, name: true },
       },
@@ -107,16 +108,18 @@ async function runHaulCOBSettlement(): Promise<SettleResult[]> {
       continue;
     }
 
-    const haulCents            = actualLoads * order.haulRateCents;
-    const materialCents        = actualLoads * (order.pitMaterialRateCents ?? 0);
-    const baseCents            = haulCents + materialCents;
-    const totalCents           = baseCents + (order.afterHoursFeeCents ?? 0);
+    const materialCents = actualLoads * (order.pitMaterialRateCents ?? 0);
+    // For buyer-op orders the haul rate is the buyer's own truck cost — it is NOT billed
+    // through Got Dirt. Only the pit material charge goes through Stripe.
+    const billableHaulCents = order.buyerOperating ? 0 : actualLoads * order.haulRateCents;
+    const baseCents         = billableHaulCents + materialCents;
+    const totalCents        = baseCents + (order.afterHoursFeeCents ?? 0);
 
-    const haulPlatformFee      = Math.round(haulCents * haulFeePercent / 100);
-    const haulerPayout         = haulCents - haulPlatformFee;
-    const matPlatformFee       = Math.round(materialCents * matFeePercent / 100);
-    const pitMaterialPayout    = materialCents - matPlatformFee;
-    const platformFeeCents     = haulPlatformFee + matPlatformFee;
+    const haulPlatformFee   = Math.round(billableHaulCents * haulFeePercent / 100);
+    const haulerPayout      = billableHaulCents - haulPlatformFee;
+    const matPlatformFee    = Math.round(materialCents * matFeePercent / 100);
+    const pitMaterialPayout = materialCents - matPlatformFee;
+    const platformFeeCents  = haulPlatformFee + matPlatformFee;
 
     if (!order.stripePaymentIntentId) {
       // No Stripe hold — just mark complete (buyer-operating or non-Stripe order)

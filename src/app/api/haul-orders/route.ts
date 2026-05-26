@@ -205,8 +205,9 @@ export async function POST(req: Request) {
 
   // Lock in the pit's material rate at order time so the charge is accurate
   // regardless of future pit rate changes.
+  // Always fetch for pit-linked orders — buyer-op still owes the pit for material.
   let pitMaterialRateCents = 0;
-  if (orderData.pitId && !isBuyerOp) {
+  if (orderData.pitId) {
     const pit = await prisma.pit.findUnique({
       where:  { id: orderData.pitId },
       select: { borrowRateCents: true },
@@ -214,11 +215,14 @@ export async function POST(req: Request) {
     pitMaterialRateCents = pit?.borrowRateCents ?? 0;
   }
 
-  const haulTotal             = resolvedHaulRate * orderData.loads;
-  const materialTotal         = pitMaterialRateCents * orderData.loads;
-  const totalEstimatedCents   = haulTotal + materialTotal;
-  // Deposit covers 25% of the full estimated charge (haul + material)
-  const depositHoldCents      = Math.round(totalEstimatedCents * 0.25);
+  const haulTotal           = resolvedHaulRate * orderData.loads;
+  const materialTotal       = pitMaterialRateCents * orderData.loads;
+  const totalEstimatedCents = haulTotal + materialTotal;
+  // For buyer-op orders the truck cost is self-reported (not billed through Got Dirt).
+  // The deposit only needs to cover the pit material charge.
+  const depositHoldCents = isBuyerOp
+    ? Math.round(materialTotal * 0.25)
+    : Math.round(totalEstimatedCents * 0.25);
 
   const haulPlatformFee       = isBuyerOp ? 0 : Math.round(haulTotal * haulFeePercent / 100);
   const haulerPayoutCents     = isBuyerOp ? 0 : haulTotal - haulPlatformFee;
@@ -246,15 +250,15 @@ export async function POST(req: Request) {
     },
   });
 
-  // Buyer/Operator orders are self-haul cost-tracking only — no Stripe, no notifications
-  if (isBuyerOp) {
-    return NextResponse.json({ order, clientSecret: null }, { status: 201 });
-  }
-
+  // Create a Stripe hold whenever there is a deposit to collect.
+  // Buyer-op orders skip the haul charge but still owe the pit for material.
   let clientSecret: string | null = null;
-  if (parsed.data.depositHoldCents > 0 && customerId) {
+  if (depositHoldCents > 0 && customerId) {
+    const piDescription = isBuyerOp
+      ? `Got Dirt? — Pit material deposit hold (${parsed.data.loads} load${parsed.data.loads !== 1 ? "s" : ""})`
+      : `Got Dirt? — Haul deposit hold (${parsed.data.loads} load${parsed.data.loads !== 1 ? "s" : ""})`;
     const pi = await stripe.paymentIntents.create({
-      amount:         parsed.data.depositHoldCents,
+      amount:         depositHoldCents,
       currency:       "usd",
       customer:       customerId,
       capture_method: "manual",
@@ -262,13 +266,18 @@ export async function POST(req: Request) {
         haulOrderId:  order.id,
         orderedBy:    session.user.id,
       },
-      description: `Got Dirt? — Haul deposit hold (${parsed.data.loads} load${parsed.data.loads !== 1 ? "s" : ""})`,
+      description: piDescription,
     });
     await prisma.haulOrder.update({
       where: { id: order.id },
       data:  { stripePaymentIntentId: pi.id },
     });
     clientSecret = pi.client_secret;
+  }
+
+  // Buyer-op orders need no hauler notifications — skip to response
+  if (isBuyerOp) {
+    return NextResponse.json({ order, clientSecret }, { status: 201 });
   }
 
   // Send notifications

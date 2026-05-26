@@ -26,7 +26,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     where:  { id: params.id },
     select: {
       id: true, buyerUserId: true, status: true, scheduledDate: true,
-      haulRateCents: true, pitMaterialRateCents: true,
+      haulRateCents: true, pitMaterialRateCents: true, buyerOperating: true,
     },
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -60,7 +60,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       const perLoadCents             = order.haulRateCents + order.pitMaterialRateCents;
       updateData.loads               = loads;
       updateData.totalEstimatedCents = loads * perLoadCents;
-      updateData.depositHoldCents    = Math.round(loads * perLoadCents * 0.25);
+      // Buyer-op deposit only covers material (truck cost is self-reported, not billed)
+      updateData.depositHoldCents    = order.buyerOperating
+        ? Math.round(loads * order.pitMaterialRateCents * 0.25)
+        : Math.round(loads * perLoadCents * 0.25);
     }
     if (notes !== undefined) updateData.notes = notes || null;
 
