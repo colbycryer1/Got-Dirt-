@@ -136,7 +136,6 @@ export default function LogLoadPanel({
     const cobTime = cobDueAt
       ? new Date(cobDueAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
       : "5:30 PM";
-    const baseCents  = finalCount * 0; // we don't have rate here — just show counts
     const isAfter    = afterHoursFee > 0;
 
     return (

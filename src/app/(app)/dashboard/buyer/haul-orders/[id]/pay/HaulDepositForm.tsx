@@ -7,7 +7,8 @@ import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-
 // Initialised once at module level — recreating stripePromise on every render
 // causes Elements to re-initialise and re-validate clientSecret, triggering
 // "The string did not match the expected pattern" in @stripe/stripe-js v9+.
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+const pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = pk ? loadStripe(pk) : null;
 
 function DepositInner({ orderId }: { orderId: string }) {
   const stripe   = useStripe();
@@ -21,13 +22,21 @@ function DepositInner({ orderId }: { orderId: string }) {
     setSubmitting(true);
     setError("");
     try {
-      const { error: stripeError } = await stripe.confirmPayment({
+      // redirect: 'if_required' — for non-redirect payment methods (cards), stripe.confirmPayment
+      // returns {paymentIntent} instead of navigating; we then redirect manually.
+      // This avoids a behavioral mismatch with allow_redirects:'never' on the PaymentIntent.
+      const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
           return_url: `${window.location.origin}/dashboard/buyer/haul-orders?deposited=${orderId}`,
         },
+        redirect: "if_required",
       });
       if (stripeError) throw new Error(stripeError.message);
+      if (paymentIntent) {
+        window.location.href = `/dashboard/buyer/haul-orders?deposited=${orderId}`;
+        return;
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Payment failed. Please try again.");
       setSubmitting(false);
@@ -59,6 +68,13 @@ export default function HaulDepositForm({
   clientSecret: string;
   orderId: string;
 }) {
+  if (!stripePromise) {
+    return (
+      <p className="text-sm text-red-600">
+        Payment configuration error. Please contact support.
+      </p>
+    );
+  }
   return (
     <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: "stripe" } }}>
       <DepositInner orderId={orderId} />

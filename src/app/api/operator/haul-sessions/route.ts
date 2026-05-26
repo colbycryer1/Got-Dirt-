@@ -17,7 +17,7 @@ function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number)
 // GET /api/operator/haul-sessions
 // Returns haul orders at this pit owner's pits that have a driver on-site
 // (GPS or manual) or an active load session.
-export async function GET(_req: Request) {
+export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (session.user.role !== "PIT_OWNER" && session.user.role !== "ADMIN") {

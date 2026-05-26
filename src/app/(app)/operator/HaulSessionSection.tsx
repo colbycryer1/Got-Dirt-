@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import Link from "next/link";
 
 interface HaulSession {
   orderId:          string;
@@ -92,7 +91,7 @@ export default function HaulSessionSection() {
     }));
   }
 
-  async function handleTap(orderId: string, currentCount: number) {
+  async function handleTap(orderId: string) {
     const tap = getTap(orderId);
     if (tap.logging) return;
 
@@ -284,7 +283,7 @@ export default function HaulSessionSection() {
                   <p className="text-xs text-green-400 text-center">Last logged at {tap.lastLogged}</p>
                 )}
                 <button
-                  onClick={() => handleTap(s.orderId, s.pitOwnerCount)}
+                  onClick={() => handleTap(s.orderId)}
                   disabled={tap.logging}
                   className={`relative w-full rounded-2xl font-black text-xl transition-all active:scale-95 disabled:opacity-60 ${
                     tap.pending
