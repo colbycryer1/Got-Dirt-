@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 
 export interface SessionOrder {
   id:         string;
@@ -28,6 +29,7 @@ interface SessionState {
 }
 
 export default function LiveSessionBanner({ orders, pitIds }: Props) {
+  const router = useRouter();
   const [onSiteMap,  setOnSiteMap]  = useState<Record<string, boolean>>({});
   const [manualMap,  setManualMap]  = useState<Record<string, boolean>>({});
   const [sessionMap, setSessionMap] = useState<Record<string, SessionState>>({});
@@ -103,6 +105,12 @@ export default function LiveSessionBanner({ orders, pitIds }: Props) {
           ...prev,
           [orderId]: { ...(prev[orderId] ?? { pitOwnerCount: 0 }), active: !currentlyActive },
         }));
+        // After starting a session, navigate to the Load Log so the pit owner
+        // can begin tapping loads immediately in the full session interface.
+        if (!currentlyActive) {
+          router.push("/dashboard/pit-owner/active-orders");
+          return;
+        }
       }
     } catch {}
     setTogglingId(null);
