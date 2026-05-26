@@ -6,8 +6,10 @@ import { z } from "zod";
 
 const createSchema = z.object({
   name:        z.string().min(1),
-  location:    z.string().optional(),
+  location:    z.string().min(1, "Job site address is required"),
   description: z.string().optional(),
+  latitude:    z.number().nullable().optional(),
+  longitude:   z.number().nullable().optional(),
 });
 
 export async function GET() {
@@ -55,6 +57,8 @@ export async function POST(req: NextRequest) {
       name:        parsed.data.name,
       location:    parsed.data.location,
       description: parsed.data.description,
+      latitude:    parsed.data.latitude,
+      longitude:   parsed.data.longitude,
     },
   });
 

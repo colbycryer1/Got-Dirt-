@@ -270,7 +270,9 @@ model Project {
   buyer       User   @relation("BuyerProjects", fields: [buyerUserId], references: [id])
 
   name        String
-  location    String?
+  location    String?   // human-readable job site address
+  latitude    Float?
+  longitude   Float?
   description String?
 
   // Accounting export fields (all optional, buyer-entered)

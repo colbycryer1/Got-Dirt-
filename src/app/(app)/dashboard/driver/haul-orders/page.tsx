@@ -21,6 +21,76 @@ function fmt(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
+function DirectionsCard({
+  label,
+  address,
+  latitude,
+  longitude,
+}: {
+  label:     string;
+  address:   string;
+  latitude?: number;
+  longitude?: number;
+}) {
+  const destEnc = latitude != null && longitude != null
+    ? `${latitude},${longitude}`
+    : encodeURIComponent(address);
+
+  const googleUrl = `https://www.google.com/maps/dir/?api=1&destination=${destEnc}`;
+  const appleUrl  = latitude != null && longitude != null
+    ? `https://maps.apple.com/?daddr=${latitude},${longitude}&dirflg=d`
+    : `https://maps.apple.com/?daddr=${encodeURIComponent(address)}&dirflg=d`;
+  const wazeUrl   = latitude != null && longitude != null
+    ? `https://waze.com/ul?ll=${latitude},${longitude}&navigate=yes`
+    : `https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes`;
+
+  return (
+    <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <span className="text-green-700 text-sm font-semibold">Job Site</span>
+        <span className="text-green-600 text-xs">·</span>
+        <span className="text-green-800 text-xs font-medium truncate">{label}</span>
+      </div>
+      <p className="text-xs text-green-700">{address}</p>
+      <div className="flex gap-2 flex-wrap pt-0.5">
+        <a
+          href={googleUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 bg-white border border-green-200 text-green-800 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+          </svg>
+          Google Maps
+        </a>
+        <a
+          href={appleUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 bg-white border border-green-200 text-green-800 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+          </svg>
+          Apple Maps
+        </a>
+        <a
+          href={wazeUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 bg-white border border-green-200 text-green-800 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+          </svg>
+          Waze
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export default async function DriverHaulOrdersPage({
   searchParams,
 }: {
@@ -35,7 +105,7 @@ export default async function DriverHaulOrdersPage({
     include: {
       buyer:   { select: { name: true, company: true, phone: true, email: true } },
       pit:     { select: { name: true, address: true, state: true } },
-      project: { select: { name: true } },
+      project: { select: { name: true, location: true, latitude: true, longitude: true } },
     },
     orderBy: [{ status: "asc" }, { scheduledDate: "asc" }],
   });
@@ -178,6 +248,16 @@ export default async function DriverHaulOrdersPage({
 
                   {o.notes && (
                     <div className="bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-600">{o.notes}</div>
+                  )}
+
+                  {/* Job site directions — shown when order is confirmed or active */}
+                  {isLive && o.project?.location && (
+                    <DirectionsCard
+                      label={o.project.name ?? "Job Site"}
+                      address={o.project.location}
+                      latitude={o.project.latitude ?? undefined}
+                      longitude={o.project.longitude ?? undefined}
+                    />
                   )}
 
                   {o.status === "CONFIRMED" && (
