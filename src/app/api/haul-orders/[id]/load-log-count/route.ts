@@ -8,30 +8,53 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const order = await prisma.haulOrder.findUnique({
-    where: { id: params.id },
+    where:  { id: params.id },
     select: {
-      buyerUserId: true,
-      pitId: true,
-      scheduledDate: true,
-      pit: { select: { name: true } },
-      driver: { select: { userId: true } },
+      buyerUserId:         true,
+      pitId:               true,
+      scheduledDate:       true,
+      pitSessionStartedAt: true,
+      pitSessionEndedAt:   true,
+      actualLoads:         true,
+      pit:     { select: { name: true } },
+      driver:  { select: { userId: true } },
       carrier: { select: { userId: true } },
     },
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const isAuthorized =
-    order.buyerUserId === session.user.id ||
-    order.driver?.userId === session.user.id ||
+    order.buyerUserId     === session.user.id ||
+    order.driver?.userId  === session.user.id ||
     order.carrier?.userId === session.user.id ||
-    session.user.role === "ADMIN";
+    session.user.role     === "ADMIN";
   if (!isAuthorized) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  if (!order.pitId) return NextResponse.json({ count: 0, pitName: null });
+  const pitName = order.pit?.name ?? null;
 
-  // Primary: find the buyer's pit material Orders at this pit on the scheduled date,
-  // then count their LoadEvents. This matches the same Load Log the buyer sees.
-  const scheduledDateOnly = order.scheduledDate.toISOString().slice(0, 10); // YYYY-MM-DD
+  // ── 1. Session ended — actualLoads is the authoritative pit owner count ───
+  if (order.pitSessionEndedAt && order.actualLoads != null) {
+    return NextResponse.json({ count: order.actualLoads, pitName, source: "pit-session-final" });
+  }
+
+  // ── 2. Session started but not yet ended — count live PitOwnerLoadLog taps ─
+  if (order.pitId && order.pitSessionStartedAt) {
+    const count = await prisma.pitOwnerLoadLog.count({
+      where: {
+        haulOrderId: params.id,
+        loggedAt:    { gte: order.pitSessionStartedAt },
+      },
+    });
+    return NextResponse.json({ count, pitName, source: "pit-log-live" });
+  }
+
+  // ── 3. No pit session at all — return 0 so buyer enters manually ──────────
+  if (!order.pitId) {
+    return NextResponse.json({ count: 0, pitName: null, source: "no-pit" });
+  }
+
+  // ── 4. Legacy fallback: LoadEvent from old pit material Order system ───────
+  const scheduledDateOnly = order.scheduledDate.toISOString().slice(0, 10);
 
   const relatedOrders = await prisma.order.findMany({
     where: {
@@ -44,27 +67,18 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   let count = 0;
   if (relatedOrders.length > 0) {
-    const orderIds = relatedOrders.map((o) => o.id);
     count = await prisma.loadEvent.count({
-      where: { orderId: { in: orderIds } },
+      where: { orderId: { in: relatedOrders.map((o) => o.id) } },
     });
   }
 
-  // Fallback: if no linked Orders exist, count all LoadEvents at the pit on that calendar day
   if (count === 0) {
     const startOfDay = new Date(scheduledDateOnly + "T00:00:00.000Z");
     const endOfDay   = new Date(scheduledDateOnly + "T23:59:59.999Z");
     count = await prisma.loadEvent.count({
-      where: {
-        pitId:     order.pitId,
-        createdAt: { gte: startOfDay, lte: endOfDay },
-      },
+      where: { pitId: order.pitId, createdAt: { gte: startOfDay, lte: endOfDay } },
     });
   }
 
-  return NextResponse.json({
-    count,
-    pitName: order.pit?.name ?? null,
-    date:    order.scheduledDate,
-  });
+  return NextResponse.json({ count, pitName, source: "legacy-load-events" });
 }

@@ -20,6 +20,7 @@ export default function CompleteHaulButton({ orderId, estimatedLoads, haulRateCe
   const [error,       setError]       = useState("");
   const [logCount,    setLogCount]    = useState<number | null>(null);
   const [logPitName,  setLogPitName]  = useState<string | null>(null);
+  const [logSource,   setLogSource]   = useState<string | null>(null);
   const fetchedRef = useRef(false);
 
   const fmt = (cents: number) =>
@@ -38,6 +39,7 @@ export default function CompleteHaulButton({ orderId, estimatedLoads, haulRateCe
         if (typeof data.count === "number") {
           setLogCount(data.count);
           setLogPitName(data.pitName ?? null);
+          setLogSource(data.source ?? null);
           if (data.count > 0) setActualLoads(data.count);
         }
       })
@@ -86,9 +88,17 @@ export default function CompleteHaulButton({ orderId, estimatedLoads, haulRateCe
         {/* Pit operator count note */}
         {logCount !== null && (
           <div className={`text-xs px-3 py-2 rounded-lg ${logCount > 0 ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-500"}`}>
-            {logCount > 0
-              ? `Pit operator logged ${logCount} load${logCount !== 1 ? "s" : ""}${logPitName ? ` at ${logPitName}` : ""}.`
-              : `No loads logged yet by the pit operator${logPitName ? ` at ${logPitName}` : ""}.`}
+            {logCount > 0 ? (
+              <>
+                {logSource === "pit-session-final"
+                  ? `Pit operator recorded ${logCount} load${logCount !== 1 ? "s" : ""}${logPitName ? ` at ${logPitName}` : ""} — session closed.`
+                  : logSource === "pit-log-live"
+                  ? `${logCount} load${logCount !== 1 ? "s" : ""} logged so far${logPitName ? ` at ${logPitName}` : ""} — session still open.`
+                  : `${logCount} load${logCount !== 1 ? "s" : ""} logged${logPitName ? ` at ${logPitName}` : ""}.`}
+              </>
+            ) : (
+              `No loads logged yet by the pit operator${logPitName ? ` at ${logPitName}` : ""}. Enter the actual count below.`
+            )}
           </div>
         )}
 
