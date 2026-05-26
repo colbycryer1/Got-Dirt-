@@ -45,6 +45,7 @@ export default function GpsLoadLogButton({ locationEnabled, activeOrders }: Prop
   // Manual arrival failsafe — keyed by orderId
   const [manualArrived,  setManualArrived]  = useState<Record<string, boolean>>({});
   const [arrivalLoading, setArrivalLoading] = useState(false);
+  const [logError,       setLogError]       = useState<string | null>(null);
 
   const watchIdRef      = useRef<number | null>(null);
   const heartbeatRef    = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -171,6 +172,7 @@ export default function GpsLoadLogButton({ locationEnabled, activeOrders }: Prop
 
   async function handleLogTap() {
     if (!canLog || logging) return;
+    setLogError(null);
 
     if (!pendingConfirm) {
       setPendingConfirm(true);
@@ -190,9 +192,15 @@ export default function GpsLoadLogButton({ locationEnabled, activeOrders }: Prop
         const { count } = await res.json();
         setDriverCount((prev) => ({ ...prev, [orderId]: count }));
         setLastLogged(new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }));
+        setLogError(null);
         pollSession();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setLogError(data.error ?? `Log failed (${res.status}) — tap to retry`);
       }
-    } catch {}
+    } catch {
+      setLogError("Network error — check connection and try again");
+    }
     setLogging(false);
   }
 
@@ -296,7 +304,12 @@ export default function GpsLoadLogButton({ locationEnabled, activeOrders }: Prop
         )
       )}
 
-      {lastLogged && <p className="text-xs text-green-600 font-semibold">Last logged at {lastLogged}</p>}
+      {lastLogged && !logError && (
+        <p className="text-xs text-green-600 font-semibold">Last logged at {lastLogged}</p>
+      )}
+      {logError && (
+        <p className="text-xs text-red-600 font-semibold">{logError}</p>
+      )}
 
       <button
         onClick={handleLogTap}
@@ -324,9 +337,23 @@ export default function GpsLoadLogButton({ locationEnabled, activeOrders }: Prop
         </span>
       </button>
 
-      <p className="text-xs text-gray-400 text-center">
-        Pit operator starts your session — double-tap confirms each load. Both logs shown for dispute resolution.
-      </p>
+      {!canLog ? (
+        <p className="text-xs text-amber-700 font-medium text-center">
+          {!sessionActive
+            ? "Waiting for pit operator to start your session"
+            : !atPit
+            ? arrivedManually
+              ? "Manual arrival confirmed — waiting for session"
+              : "You must be at the pit to log loads"
+            : !isStationary
+            ? "Stop the truck before logging a load"
+            : "Waiting…"}
+        </p>
+      ) : (
+        <p className="text-xs text-gray-400 text-center">
+          Double-tap to confirm each load
+        </p>
+      )}
     </div>
   );
 }

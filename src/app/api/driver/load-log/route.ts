@@ -24,15 +24,12 @@ export async function POST(req: Request) {
 
   const { haulOrderId, lat, lng, speed } = parsed.data;
 
-  // Verify driver profile has liveLocationEnabled
+  // Verify driver profile exists and is assigned to this order
   const profile = await prisma.driverProfile.findUnique({
     where:  { userId: session.user.id },
-    select: { id: true, liveLocationEnabled: true },
+    select: { id: true },
   });
   if (!profile) return NextResponse.json({ error: "Driver profile not found" }, { status: 404 });
-  if (!profile.liveLocationEnabled) {
-    return NextResponse.json({ error: "Live location must be enabled to log loads" }, { status: 403 });
-  }
 
   // Verify the haul order belongs to this driver and is active/confirmed
   const order = await prisma.haulOrder.findUnique({
