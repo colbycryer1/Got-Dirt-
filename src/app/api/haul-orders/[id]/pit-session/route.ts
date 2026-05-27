@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getCobDueAt, isAfterCOB } from "@/lib/timezone";
-import { sendOverageApprovalRequest } from "@/lib/email";
+import { sendOverageApprovalRequest, sendSessionEndedToBuyer } from "@/lib/email";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -81,15 +81,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       pitMaterialRateCents:  true,
       driverManualArrival:   true,
       driverManualArrivalAt: true,
-      buyer:  { select: { email: true, name: true } },
-      driver: {
+      buyer:   { select: { email: true, name: true } },
+      driver:  {
         select: {
           currentLat:          true,
           currentLng:          true,
           lastLocationAt:      true,
           liveLocationEnabled: true,
+          user:                { select: { name: true } },
         },
       },
+      carrier: { select: { user: { select: { name: true } } } },
     },
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -190,9 +192,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       } : {}),
     };
 
-    // Notify buyer about overage so they can approve before COB
+    const haulerName = order.driver?.user.name ?? order.carrier?.user.name ?? null;
+
     if (overageLoads > 0 && order.buyer.email) {
-      const cobTimeStr = cobDueAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      // Overage — buyer must approve before COB
+      const cobTimeStr   = cobDueAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
       const perLoadCents = order.haulRateCents + (order.pitMaterialRateCents ?? 0);
       sendOverageApprovalRequest({
         buyerEmail:   order.buyer.email,
@@ -204,6 +208,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         rateCents:    perLoadCents,
         cobTimeStr,
         orderId:      params.id,
+      }).catch(console.error);
+    } else if (order.buyer.email) {
+      // No overage — notify buyer to review and confirm the load count
+      sendSessionEndedToBuyer({
+        buyerEmail:        order.buyer.email,
+        buyerName:         order.buyer.name,
+        pitName:           pit.name ?? pit.state,
+        haulerName,
+        actualLoads:       sessionCount,
+        haulRateCents:     order.haulRateCents,
+        materialRateCents: order.pitMaterialRateCents ?? 0,
+        orderId:           params.id,
       }).catch(console.error);
     }
   }

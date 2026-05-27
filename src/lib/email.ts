@@ -368,6 +368,39 @@ export async function sendHaulClaimedToBuyer(opts: {
   );
 }
 
+export async function sendSessionEndedToBuyer(opts: {
+  buyerEmail:       string;
+  buyerName:        string | null;
+  pitName:          string;
+  haulerName:       string | null;
+  actualLoads:      number;
+  haulRateCents:    number;
+  materialRateCents: number;
+  orderId:          string;
+}) {
+  const { buyerEmail, buyerName, pitName, haulerName, actualLoads, haulRateCents, materialRateCents, orderId } = opts;
+  const haulTotal = actualLoads * haulRateCents;
+  const matTotal  = actualLoads * materialRateCents;
+  const totalCents = haulTotal + matTotal;
+  await send(
+    buyerEmail,
+    `Got Dirt? — Load session complete at ${pitName} — your review needed`,
+    `<p>Hi ${buyerName ?? "there"},</p>
+     <p>The pit operator at <strong>${pitName}</strong> has ended the load session for your haul order. Please review the load log and confirm to release payment.</p>
+     <ul>
+       <li>Hauler: <strong>${haulerName ?? "—"}</strong></li>
+       <li>Pit: <strong>${pitName}</strong></li>
+       <li>Loads logged by pit: <strong>${actualLoads}</strong></li>
+       <li>Haul charge: <strong>$${(haulTotal / 100).toFixed(2)}</strong></li>
+       ${matTotal > 0 ? `<li>Pit material: <strong>$${(matTotal / 100).toFixed(2)}</strong></li>` : ""}
+       <li>Estimated total: <strong>$${(totalCents / 100).toFixed(2)}</strong></li>
+       <li>Order ID: <code>${orderId}</code></li>
+     </ul>
+     <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/buyer/haul-orders" style="background:#d97706;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;">Review &amp; Confirm →</a></p>
+     <p style="color:#6b7280;font-size:12px;">Your payment will only be charged once you confirm the load count.</p>`
+  );
+}
+
 export async function sendOverageApprovalRequest(opts: {
   buyerEmail:     string;
   buyerName:      string | null;
