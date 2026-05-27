@@ -436,6 +436,51 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
             })}
           </select>
         )}
+
+        {/* Pit rate card — shown once a pit is selected */}
+        {selectedPit && (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-amber-900">{selectedPit.name}</p>
+              <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-semibold">
+                {selectedPit.pitType.replace("_", " / ")}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="bg-white rounded-lg px-3 py-2 border border-amber-100">
+                <p className="text-xs text-gray-500 mb-0.5">Material rate</p>
+                {pitMaterialRate > 0 ? (
+                  <p className="text-base font-bold text-gray-900">
+                    ${(pitMaterialRate / 100).toFixed(2)}<span className="text-xs font-normal text-gray-400">/load</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-400 italic">Not set</p>
+                )}
+              </div>
+              <div className="bg-white rounded-lg px-3 py-2 border border-amber-100">
+                <p className="text-xs text-gray-500 mb-0.5">Locked haul rate</p>
+                {pitLockedRate !== null ? (
+                  <p className="text-base font-bold text-green-700">
+                    ${(pitLockedRate / 100).toFixed(2)}<span className="text-xs font-normal text-gray-400">/load</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-400 italic">None today</p>
+                )}
+              </div>
+            </div>
+            {pitMaterialRate > 0 && mode !== "self" && (
+              <p className="text-xs text-amber-700">
+                Pit material rate is charged per load in addition to the haul rate. Both rates are locked at order time.
+              </p>
+            )}
+            {pitMaterialRate === 0 && mode !== "self" && (
+              <p className="text-xs text-amber-700">
+                This pit has not set a material rate — you will only be charged the haul rate.
+              </p>
+            )}
+          </div>
+        )}
+
         <p className="text-xs text-gray-400 mt-1">
           Loads logged at this pit auto-track to this order.
           {pitLockedRate !== null && mode === "broadcast" && (
