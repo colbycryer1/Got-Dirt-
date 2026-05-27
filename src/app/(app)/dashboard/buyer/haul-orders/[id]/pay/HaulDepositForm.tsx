@@ -52,10 +52,10 @@ function DepositInner({ orderId }: { orderId: string }) {
         disabled={submitting || !stripe}
         className="w-full bg-amber-600 text-white py-3 rounded-xl font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors"
       >
-        {submitting ? "Processing…" : "Authorize Deposit Hold"}
+        {submitting ? "Processing…" : "Authorize Payment Hold"}
       </button>
       <p className="text-xs text-gray-400 text-center">
-        Your card will not be charged until the haul is completed. The hold will be released if the order is cancelled.
+        You are only charged for actual loads delivered. Unused funds are released automatically. The hold is cancelled if the order is cancelled.
       </p>
     </form>
   );

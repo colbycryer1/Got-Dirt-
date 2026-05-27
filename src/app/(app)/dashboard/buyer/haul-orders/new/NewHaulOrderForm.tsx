@@ -24,7 +24,7 @@ interface Props {
   carriers:     Carrier[];
 }
 
-const DEPOSIT_PERCENT    = 25;
+const DEPOSIT_PERCENT    = 100;
 const RATE_FLOOR_BUFFER  = 1000; // $10 in cents — buyer can't go more than $10 below lowest driver
 
 const TRUCK_TYPES = [
@@ -530,13 +530,13 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
           )}
           {mode !== "self" && (
             <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
-              <span className="text-gray-500">Deposit hold ({DEPOSIT_PERCENT}%)</span>
+              <span className="text-gray-500">Authorization hold</span>
               <span className="font-bold text-amber-700">${(deposit / 100).toFixed(2)}</span>
             </div>
           )}
           {mode === "self"
             ? <p className="text-xs text-gray-400">Internal cost only — no charge collected. Exported to your project accounting.</p>
-            : <p className="text-xs text-gray-400">Card is authorized now, charged after haul completion. Covers haul rate + pit material rate.</p>
+            : <p className="text-xs text-gray-400">Full amount authorized now. You are only charged for actual loads delivered — unused funds are released automatically.</p>
           }
         </div>
       )}

@@ -43,10 +43,10 @@ export default async function HaulDepositPage({
       </nav>
 
       <div className="max-w-md mx-auto px-6 py-10">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Confirm Deposit Hold</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Authorize Haul Payment</h1>
         <p className="text-gray-500 mb-8">
-          A temporary hold of <strong>${(order.depositHoldCents / 100).toFixed(2)}</strong> will be placed on your card.
-          It is not charged until the haul is completed.
+          A hold of <strong>${(order.depositHoldCents / 100).toFixed(2)}</strong> will be placed on your card now.
+          You are only charged the actual amount based on loads delivered — any unused portion is automatically released.
         </p>
 
         <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6 space-y-2 text-sm">
@@ -77,8 +77,8 @@ export default async function HaulDepositPage({
             <span className="text-gray-500">Estimated Total</span>
             <span className="font-bold">${(order.totalEstimatedCents / 100).toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-amber-700">
-            <span className="font-semibold">Deposit Hold Now</span>
+          <div className="flex justify-between text-amber-700 border-t border-gray-100 pt-2">
+            <span className="font-semibold">Authorization Hold</span>
             <span className="font-bold">${(order.depositHoldCents / 100).toFixed(2)}</span>
           </div>
         </div>

@@ -228,11 +228,13 @@ export async function POST(req: Request) {
   const haulTotal           = resolvedHaulRate * orderData.loads;
   const materialTotal       = pitMaterialRateCents * orderData.loads;
   const totalEstimatedCents = haulTotal + materialTotal;
-  // For buyer-op orders the truck cost is self-reported (not billed through Got Dirt).
-  // The deposit only needs to cover the pit material charge.
+  // Full-amount authorization: hold the entire estimated charge so the platform
+  // always has sufficient funds to pay both the hauler and pit owner at completion.
+  // Buyer-op trucks are cost-tracking only (not billed through Got Dirt), so
+  // only the pit material charge needs to be authorized.
   const depositHoldCents = isBuyerOp
-    ? Math.round(materialTotal * 0.25)
-    : Math.round(totalEstimatedCents * 0.25);
+    ? materialTotal           // pit material only — truck cost is not billed
+    : totalEstimatedCents;    // haul + pit material, released/adjusted at completion
 
   const haulPlatformFee       = isBuyerOp ? 0 : Math.round(haulTotal * haulFeePercent / 100);
   const haulerPayoutCents     = isBuyerOp ? 0 : haulTotal - haulPlatformFee;
@@ -265,8 +267,8 @@ export async function POST(req: Request) {
   let clientSecret: string | null = null;
   if (depositHoldCents > 0 && customerId) {
     const piDescription = isBuyerOp
-      ? `Got Dirt? — Pit material deposit hold (${parsed.data.loads} load${parsed.data.loads !== 1 ? "s" : ""})`
-      : `Got Dirt? — Haul deposit hold (${parsed.data.loads} load${parsed.data.loads !== 1 ? "s" : ""})`;
+      ? `Got Dirt? — Pit material authorization (${parsed.data.loads} load${parsed.data.loads !== 1 ? "s" : ""})`
+      : `Got Dirt? — Haul authorization (${parsed.data.loads} load${parsed.data.loads !== 1 ? "s" : ""})`;
     const pi = await stripe.paymentIntents.create({
       amount:         depositHoldCents,
       currency:       "usd",

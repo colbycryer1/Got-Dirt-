@@ -27,7 +27,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const order = await prisma.haulOrder.findUnique({
     where:   { id: params.id },
     include: {
-      buyer:   { select: { stripeCustomerId: true, defaultPaymentMethodId: true, email: true, name: true, company: true } },
+      buyer:   { select: { stripeCustomerId: true, email: true, name: true, company: true } },
       driver:  { include: { user: { select: { stripeAccountId: true, email: true, name: true } } } },
       carrier: { include: { user: { select: { stripeAccountId: true, email: true, name: true } } } },
       pit:     { select: { name: true, owner: { select: { stripeAccountId: true, email: true, name: true } } } },
@@ -39,53 +39,66 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: "Order cannot be completed in its current state" }, { status: 409 });
   }
 
-  // Calculate final charge based on ACTUAL loads — haul + material portions split separately
-  const haulCents          = actualLoads * order.haulRateCents;
-  const materialCents      = actualLoads * (order.pitMaterialRateCents ?? 0);
-  const actualTotalCents   = haulCents + materialCents;
+  // For buyer-op (self-haul), haulRateCents is the truck cost-tracking rate — NOT billed via Stripe.
+  // Only pit materialCents is billable. For direct/broadcast hauls, both portions are billable.
+  const isBuyerOp      = order.buyerOperating;
+  const haulCents      = actualLoads * order.haulRateCents;
+  const materialCents  = actualLoads * (order.pitMaterialRateCents ?? 0);
+  // chargeableCents is what actually gets captured from the buyer's card
+  const chargeableCents = isBuyerOp ? materialCents : haulCents + materialCents;
 
   const settings = await prisma.platformSettings.findUnique({ where: { id: "singleton" } });
-  const haulFeePercent     = settings?.haulFeePercent ?? 10.0;
-  const matFeePercent      = settings?.feePercent      ?? 8.0;
+  const haulFeePercent     = isBuyerOp ? 0 : (settings?.haulFeePercent ?? 10.0);
+  const matFeePercent      = settings?.feePercent ?? 8.0;
 
   const haulPlatformFee    = Math.round(haulCents     * haulFeePercent / 100);
   const matPlatformFee     = Math.round(materialCents * matFeePercent  / 100);
   const actualPlatformFee  = haulPlatformFee + matPlatformFee;
-  const actualHaulerPayout = haulCents - haulPlatformFee;
+  const actualHaulerPayout = isBuyerOp ? 0 : haulCents - haulPlatformFee;
   const pitMaterialPayout  = materialCents - matPlatformFee;
 
-  const STRIPE_MIN_CENTS = 50; // Stripe minimum charge is $0.50
+  const STRIPE_MIN_CENTS = 50;
 
   // ── Stripe charge logic ──────────────────────────────────────────────────
-  if (order.stripePaymentIntentId && actualTotalCents > 0) {
-    const chargeAmount = Math.max(actualTotalCents, STRIPE_MIN_CENTS);
+  // The authorization (depositHoldCents) was set to the full estimated amount at order creation,
+  // so chargeableCents ≤ depositHoldCents in the normal case (partial capture releases the rest).
+  // An overage PI is only needed when actual loads exceed the estimate.
+  if (order.stripePaymentIntentId && chargeableCents > 0) {
+    const captureAmount = Math.max(chargeableCents, STRIPE_MIN_CENTS);
 
-    if (actualTotalCents <= order.depositHoldCents) {
-      // Actual ≤ hold: partial capture — buyer is charged less than they authorized
+    if (chargeableCents <= order.depositHoldCents) {
+      // Typical path: capture exactly what is owed (≤ authorized amount)
       await stripe.paymentIntents.capture(order.stripePaymentIntentId, {
-        amount_to_capture: chargeAmount,
+        amount_to_capture: captureAmount,
       });
     } else {
-      // Actual > hold: capture the full deposit, then charge the overage separately
+      // Overage: actual loads exceeded estimate — capture full authorization, charge extra
       await stripe.paymentIntents.capture(order.stripePaymentIntentId);
 
-      const overageCents = actualTotalCents - order.depositHoldCents;
-      const buyer = order.buyer;
-      if (buyer.stripeCustomerId && buyer.defaultPaymentMethodId && overageCents >= STRIPE_MIN_CENTS) {
-        await stripe.paymentIntents.create({
-          amount:         overageCents,
-          currency:       "usd",
-          customer:       buyer.stripeCustomerId,
-          payment_method: buyer.defaultPaymentMethodId,
-          confirm:        true,
-          off_session:    true,
-          description:    `Got Dirt? — Haul overage (${actualLoads - order.loads} extra loads) — Order ${order.id}`,
-          metadata:       { haulOrderId: order.id, type: "overage" },
-        });
+      const overageCents = chargeableCents - order.depositHoldCents;
+      if (overageCents >= STRIPE_MIN_CENTS && order.buyer.stripeCustomerId) {
+        // Retrieve the PI to get the exact payment method the buyer originally used
+        const depositPI = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
+        const pmId = typeof depositPI.payment_method === "string"
+          ? depositPI.payment_method
+          : depositPI.payment_method?.id ?? null;
+
+        if (pmId) {
+          await stripe.paymentIntents.create({
+            amount:         overageCents,
+            currency:       "usd",
+            customer:       order.buyer.stripeCustomerId,
+            payment_method: pmId,
+            confirm:        true,
+            off_session:    true,
+            automatic_payment_methods: { enabled: true, allow_redirects: "never" },
+            description:    `Got Dirt? — Extra loads (${actualLoads - order.loads} over estimate) — Order ${order.id}`,
+            metadata:       { haulOrderId: order.id, type: "overage" },
+          });
+        }
       }
     }
-  } else if (order.stripePaymentIntentId && actualTotalCents === 0) {
-    // Zero loads — cancel the hold
+  } else if (order.stripePaymentIntentId && chargeableCents === 0) {
     await stripe.paymentIntents.cancel(order.stripePaymentIntentId);
   }
 
@@ -170,9 +183,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       haulerName,
       pitName:           pitNameStr,
       actualLoads,
-      haulRateCents:     order.haulRateCents,
+      haulRateCents:     isBuyerOp ? 0 : order.haulRateCents,
       materialRateCents: order.pitMaterialRateCents ?? 0,
-      totalCents:        actualTotalCents,
+      totalCents:        chargeableCents,
       orderId:           order.id,
     }).catch(console.error);
   }
@@ -180,7 +193,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   return NextResponse.json({
     order:                  updated,
     actualLoads,
-    actualTotalCents,
+    chargeableCents,
     platformFeeCents:       actualPlatformFee,
     haulerPayoutCents:      actualHaulerPayout,
     pitMaterialPayoutCents: pitMaterialPayout,
