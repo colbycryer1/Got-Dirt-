@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { isBuyerRole } from "@/types";
 import { NextResponse } from "next/server";
+import { sendHaulCompletedToBuyer, sendHaulPayoutToHauler, sendPaymentReceivedPitOwner } from "@/lib/email";
 import { z } from "zod";
 
 const schema = z.object({
@@ -26,7 +27,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const order = await prisma.haulOrder.findUnique({
     where:   { id: params.id },
     include: {
-      buyer: { select: { stripeCustomerId: true, defaultPaymentMethodId: true, email: true } },
+      buyer:   { select: { stripeCustomerId: true, defaultPaymentMethodId: true, email: true, name: true, company: true } },
+      driver:  { include: { user: { select: { stripeAccountId: true, email: true, name: true } } } },
+      carrier: { include: { user: { select: { stripeAccountId: true, email: true, name: true } } } },
+      pit:     { select: { name: true, owner: { select: { stripeAccountId: true, email: true, name: true } } } },
     },
   });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -97,6 +101,81 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       pitMaterialPayoutCents: pitMaterialPayout,
     },
   });
+
+  // ── Stripe payouts ────────────────────────────────────────────────────────
+  // Transfer to pit owner and hauler using their Stripe Connect accounts.
+  // Fire-and-forget: failures are logged but don't block the buyer's response.
+  const pitOwnerAccountId = order.pit?.owner?.stripeAccountId ?? null;
+  const haulerAccountId   = order.driver?.user.stripeAccountId
+                         ?? order.carrier?.user.stripeAccountId
+                         ?? null;
+
+  if (pitMaterialPayout > 0 && pitOwnerAccountId) {
+    stripe.transfers.create({
+      amount:         pitMaterialPayout,
+      currency:       "usd",
+      destination:    pitOwnerAccountId,
+      transfer_group: order.id,
+      metadata:       { haulOrderId: order.id, type: "pit_material" },
+      description:    `Got Dirt? — Pit material payout for Order ${order.id}`,
+    }).then(() => {
+      const ownerEmail = order.pit?.owner?.email;
+      const ownerName  = order.pit?.owner?.name ?? null;
+      const pitNameStr = order.pit?.name ?? "your pit";
+      if (ownerEmail) {
+        sendPaymentReceivedPitOwner({
+          ownerEmail,
+          ownerName,
+          pitName:      pitNameStr,
+          payoutCents:  pitMaterialPayout,
+          invoiceNumber: `ORD-${order.id.slice(0, 8).toUpperCase()}`,
+        }).catch(console.error);
+      }
+    }).catch((err: unknown) => console.error("[complete] pit owner transfer failed:", err));
+  }
+
+  if (actualHaulerPayout > 0 && haulerAccountId) {
+    stripe.transfers.create({
+      amount:         actualHaulerPayout,
+      currency:       "usd",
+      destination:    haulerAccountId,
+      transfer_group: order.id,
+      metadata:       { haulOrderId: order.id, type: "haul" },
+      description:    `Got Dirt? — Haul payout for Order ${order.id}`,
+    }).then(() => {
+      const haulerEmail = order.driver?.user.email ?? order.carrier?.user.email;
+      const haulerName  = order.driver?.user.name  ?? order.carrier?.user.name ?? null;
+      const buyerCompany = order.buyer.company ?? order.buyer.name ?? null;
+      if (haulerEmail) {
+        sendHaulPayoutToHauler({
+          haulerEmail,
+          haulerName,
+          buyerCompany,
+          actualLoads,
+          payoutCents: actualHaulerPayout,
+          orderId:     order.id,
+        }).catch(console.error);
+      }
+    }).catch((err: unknown) => console.error("[complete] hauler transfer failed:", err));
+  }
+
+  // Notify the buyer that their card has been charged and payouts are on the way
+  if (order.buyer.email) {
+    const haulerName  = order.driver?.user.name ?? order.carrier?.user.name ?? null;
+    const pitNameStr  = order.pit?.name ?? "the pit";
+    const buyerName   = order.buyer.name ?? null;
+    sendHaulCompletedToBuyer({
+      buyerEmail:        order.buyer.email,
+      buyerName,
+      haulerName,
+      pitName:           pitNameStr,
+      actualLoads,
+      haulRateCents:     order.haulRateCents,
+      materialRateCents: order.pitMaterialRateCents ?? 0,
+      totalCents:        actualTotalCents,
+      orderId:           order.id,
+    }).catch(console.error);
+  }
 
   return NextResponse.json({
     order:                  updated,

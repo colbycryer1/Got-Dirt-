@@ -160,6 +160,96 @@ export async function sendNewOrderPitOwner(opts: {
 
 // ── Haul order emails ──────────────────────────────────────────────────────
 
+export async function sendHaulOrderToPitOwner(opts: {
+  ownerEmail:       string;
+  ownerName:        string | null;
+  pitName:          string;
+  buyerCompany:     string | null;
+  haulerName:       string | null;
+  loads:            number;
+  materialRateCents: number;
+  scheduledDate:    string;
+  orderId:          string;
+}) {
+  const { ownerEmail, ownerName, pitName, buyerCompany, haulerName, loads, materialRateCents, scheduledDate, orderId } = opts;
+  const rateStr = `$${(materialRateCents / 100).toFixed(2)}/load`;
+  const totalStr = `$${((materialRateCents * loads) / 100).toFixed(2)}`;
+  await send(
+    ownerEmail,
+    `Got Dirt? — New haul order at ${pitName}`,
+    `<p>Hi ${ownerName ?? "there"},</p>
+     <p>A buyer has placed a haul order at <strong>${pitName}</strong> and needs your approval.</p>
+     <ul>
+       <li>Buyer: <strong>${buyerCompany ?? "Unknown buyer"}</strong></li>
+       <li>Hauler: <strong>${haulerName ?? "Independent driver"}</strong></li>
+       <li>Estimated loads: <strong>${loads}</strong></li>
+       <li>Material rate: <strong>${rateStr}</strong></li>
+       <li>Material total (est.): <strong>${totalStr}</strong></li>
+       <li>Scheduled: <strong>${scheduledDate}</strong></li>
+       <li>Order ID: <code>${orderId}</code></li>
+     </ul>
+     <p>Log in to Got Dirt? to <strong>approve or deny</strong> this order and start a load session when the driver arrives.</p>
+     <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/pit-owner/active-orders">Review Order →</a></p>`
+  );
+}
+
+export async function sendHaulCompletedToBuyer(opts: {
+  buyerEmail:        string;
+  buyerName:         string | null;
+  haulerName:        string | null;
+  pitName:           string;
+  actualLoads:       number;
+  haulRateCents:     number;
+  materialRateCents: number;
+  totalCents:        number;
+  orderId:           string;
+}) {
+  const { buyerEmail, buyerName, haulerName, pitName, actualLoads, haulRateCents, materialRateCents, totalCents, orderId } = opts;
+  const haulTotal = actualLoads * haulRateCents;
+  const matTotal  = actualLoads * materialRateCents;
+  await send(
+    buyerEmail,
+    `Got Dirt? — Haul complete at ${pitName}`,
+    `<p>Hi ${buyerName ?? "there"},</p>
+     <p>Your haul order at <strong>${pitName}</strong> has been completed. Please review the load log and confirm below.</p>
+     <ul>
+       <li>Hauler: <strong>${haulerName ?? "—"}</strong></li>
+       <li>Pit: <strong>${pitName}</strong></li>
+       <li>Actual loads: <strong>${actualLoads}</strong></li>
+       <li>Haul charge: <strong>$${(haulTotal / 100).toFixed(2)}</strong></li>
+       ${matTotal > 0 ? `<li>Pit material: <strong>$${(matTotal / 100).toFixed(2)}</strong></li>` : ""}
+       <li>Total: <strong>$${(totalCents / 100).toFixed(2)}</strong></li>
+       <li>Order ID: <code>${orderId}</code></li>
+     </ul>
+     <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/buyer/haul-orders">Review & Confirm →</a></p>
+     <p>Your card will be charged once you confirm. The hauler and pit will be paid within 2 business days of confirmation.</p>`
+  );
+}
+
+export async function sendHaulPayoutToHauler(opts: {
+  haulerEmail:   string;
+  haulerName:    string | null;
+  buyerCompany:  string | null;
+  actualLoads:   number;
+  payoutCents:   number;
+  orderId:       string;
+}) {
+  const { haulerEmail, haulerName, buyerCompany, actualLoads, payoutCents, orderId } = opts;
+  await send(
+    haulerEmail,
+    `Got Dirt? — Payout on its way`,
+    `<p>Hi ${haulerName ?? "there"},</p>
+     <p>A haul you completed has been settled by the buyer.</p>
+     <ul>
+       <li>Buyer: <strong>${buyerCompany ?? "—"}</strong></li>
+       <li>Loads hauled: <strong>${actualLoads}</strong></li>
+       <li>Your payout: <strong>$${(payoutCents / 100).toFixed(2)}</strong></li>
+       <li>Order ID: <code>${orderId}</code></li>
+     </ul>
+     <p>Transfer typically arrives in 2 business days via Stripe Express. Thank you for hauling with Got Dirt?</p>`
+  );
+}
+
 export async function sendHaulRequestToHauler(opts: {
   haulerEmail: string;
   haulerName: string | null;

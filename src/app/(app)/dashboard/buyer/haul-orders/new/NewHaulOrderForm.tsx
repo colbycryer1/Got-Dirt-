@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 interface Project  { id: string; name: string; }
-interface PitItem  { id: string; name: string; address?: string; state: string; pitType: string; }
+interface PitItem  { id: string; name: string; address?: string; state: string; pitType: string; borrowRateCents: number; }
 interface Driver   { id: string; name: string; truckType: string; haulRateCents: number; liveLocationEnabled: boolean; }
 interface Carrier  { id: string; name: string; haulRateCents: number; }
 
@@ -60,8 +60,10 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
   const list     = haulerType === "driver" ? drivers : carriers;
   const selected = mode === "direct" ? list.find((x) => x.id === selectedId) : null;
 
-  // Pit's locked haul rate today (if any)
+  // Pit's locked haul rate today (if any) and material (borrow) rate
   const pitLockedRate: number | null = pitId ? (pitHaulRates[pitId] ?? null) : null;
+  const selectedPit      = pits.find((p) => p.id === pitId);
+  const pitMaterialRate  = selectedPit?.borrowRateCents ?? 0; // $/load for pit material
 
   const rateInCents =
     mode === "direct"    ? (selected?.haulRateCents ?? 0)
@@ -69,9 +71,11 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
       ? (pitLockedRate !== null ? pitLockedRate : Math.round(parseFloat(broadcastRate || "0") * 100))
     : Math.round(parseFloat(selfRatePerLoad || "0") * 100);
 
-  const loadsNum  = parseInt(loads) || 0;
-  const total     = rateInCents * loadsNum;
-  const deposit   = mode === "self" ? 0 : Math.round(total * DEPOSIT_PERCENT / 100);
+  const loadsNum       = parseInt(loads) || 0;
+  const haulSubtotal   = rateInCents * loadsNum;
+  const matSubtotal    = mode === "self" ? 0 : pitMaterialRate * loadsNum;
+  const total          = haulSubtotal + matSubtotal;
+  const deposit        = mode === "self" ? 0 : Math.round(total * DEPOSIT_PERCENT / 100);
 
   // Lowest active driver rate (for rate floor in broadcast mode)
   const lowestDriverRate = drivers.length > 0
@@ -505,9 +509,25 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
             {mode === "self" ? "Cost Summary (Internal)" : "Order Summary"}
           </p>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-500">{loadsNum} load{loadsNum !== 1 ? "s" : ""} × ${(rateInCents / 100).toFixed(2)}</span>
-            <span className="font-semibold">${(total / 100).toFixed(2)}</span>
+            <span className="text-gray-500">
+              Haul · {loadsNum} load{loadsNum !== 1 ? "s" : ""} × ${(rateInCents / 100).toFixed(2)}
+            </span>
+            <span className="font-semibold">${(haulSubtotal / 100).toFixed(2)}</span>
           </div>
+          {matSubtotal > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">
+                Pit material · {loadsNum} load{loadsNum !== 1 ? "s" : ""} × ${(pitMaterialRate / 100).toFixed(2)}
+              </span>
+              <span className="font-semibold">${(matSubtotal / 100).toFixed(2)}</span>
+            </div>
+          )}
+          {matSubtotal > 0 && (
+            <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
+              <span className="text-gray-500">Estimated total</span>
+              <span className="font-bold">${(total / 100).toFixed(2)}</span>
+            </div>
+          )}
           {mode !== "self" && (
             <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
               <span className="text-gray-500">Deposit hold ({DEPOSIT_PERCENT}%)</span>
@@ -516,7 +536,7 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
           )}
           {mode === "self"
             ? <p className="text-xs text-gray-400">Internal cost only — no charge collected. Exported to your project accounting.</p>
-            : <p className="text-xs text-gray-400">Card is authorized now, charged after haul completion.</p>
+            : <p className="text-xs text-gray-400">Card is authorized now, charged after haul completion. Covers haul rate + pit material rate.</p>
           }
         </div>
       )}

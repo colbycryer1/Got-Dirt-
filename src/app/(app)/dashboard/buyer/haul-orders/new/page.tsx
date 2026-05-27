@@ -22,12 +22,13 @@ export default async function NewHaulOrderPage() {
       select:  { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    // All active pits with their daily haul rate lock
+    // All active pits with their daily haul rate lock and borrow (material) rate
     prisma.pit.findMany({
       where:   { status: "ACTIVE" },
       select:  {
         id: true, name: true, address: true, state: true, pitType: true,
         dailyHaulRateCents: true, dailyHaulRateLockedAt: true,
+        borrowRateCents: true,
       },
       orderBy: [{ state: "asc" }, { name: "asc" }],
     }),
@@ -69,11 +70,12 @@ export default async function NewHaulOrderPage() {
           <NewHaulOrderForm
             projects={projects}
             pits={pits.map((p) => ({
-              id:      p.id,
-              name:    p.name,
-              address: p.address ?? undefined,
-              state:   p.state,
-              pitType: p.pitType,
+              id:              p.id,
+              name:            p.name,
+              address:         p.address ?? undefined,
+              state:           p.state,
+              pitType:         p.pitType,
+              borrowRateCents: p.borrowRateCents ?? 0,
             }))}
             pitHaulRates={pitHaulRates}
             drivers={publicDrivers.map((d) => ({

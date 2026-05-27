@@ -5,7 +5,7 @@ import { stripe } from "@/lib/stripe";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isBuyerRole } from "@/types";
-import { sendHaulRequestToHauler, sendHaulBroadcast } from "@/lib/email";
+import { sendHaulRequestToHauler, sendHaulBroadcast, sendHaulOrderToPitOwner } from "@/lib/email";
 import { filterAvailableHaulers, getHaulerConflicts } from "@/lib/hauler-overlap";
 
 const createSchema = z.object({
@@ -205,14 +205,24 @@ export async function POST(req: Request) {
 
   // Lock in the pit's material rate at order time so the charge is accurate
   // regardless of future pit rate changes.
-  // Always fetch for pit-linked orders — buyer-op still owes the pit for material.
+  // Also fetch pit owner contact info for the post-order notification.
   let pitMaterialRateCents = 0;
+  let pitOwnerEmail: string | null = null;
+  let pitOwnerName:  string | null = null;
+  let pitName:       string | null = null;
   if (orderData.pitId) {
     const pit = await prisma.pit.findUnique({
       where:  { id: orderData.pitId },
-      select: { borrowRateCents: true },
+      select: {
+        borrowRateCents: true,
+        name:  true,
+        owner: { select: { email: true, name: true } },
+      },
     });
     pitMaterialRateCents = pit?.borrowRateCents ?? 0;
+    pitOwnerEmail        = pit?.owner?.email    ?? null;
+    pitOwnerName         = pit?.owner?.name     ?? null;
+    pitName              = pit?.name             ?? null;
   }
 
   const haulTotal           = resolvedHaulRate * orderData.loads;
@@ -334,9 +344,43 @@ export async function POST(req: Request) {
         rateCents:     parsed.data.haulRateCents,
         scheduledDate: scheduledStr,
         orderId:       order.id,
-        dashboardPath: "/dashboard/buyer/haul-orders",
+        dashboardPath: "/dashboard/carrier/haul-orders",
       }).catch(console.error);
     }
+  }
+
+  // Always notify the pit owner that a haul order has been placed at their pit,
+  // regardless of whether it is a broadcast or direct request.
+  if (pitOwnerEmail && pitName && !isBuyerOp) {
+    // Resolve hauler name for the pit owner's notification
+    let haulerNameForPit: string | null = null;
+    if (parsed.data.driverId) {
+      const dp = await prisma.driverProfile.findUnique({
+        where:  { id: parsed.data.driverId },
+        select: { user: { select: { name: true } } },
+      });
+      haulerNameForPit = dp?.user.name ?? null;
+    } else if (parsed.data.carrierId) {
+      const cp = await prisma.carrierProfile.findUnique({
+        where:  { id: parsed.data.carrierId },
+        select: { companyName: true, user: { select: { name: true } } },
+      });
+      haulerNameForPit = cp?.companyName ?? cp?.user.name ?? null;
+    } else if (broadcast) {
+      haulerNameForPit = "Open broadcast — first driver to accept";
+    }
+
+    sendHaulOrderToPitOwner({
+      ownerEmail:        pitOwnerEmail,
+      ownerName:         pitOwnerName,
+      pitName,
+      buyerCompany,
+      haulerName:        haulerNameForPit,
+      loads:             order.loads,
+      materialRateCents: pitMaterialRateCents,
+      scheduledDate:     scheduledStr,
+      orderId:           order.id,
+    }).catch(console.error);
   }
 
   return NextResponse.json({ order, clientSecret }, { status: 201 });

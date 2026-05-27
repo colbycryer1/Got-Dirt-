@@ -62,6 +62,17 @@ export default async function HaulDepositPage({
             <span className="text-gray-500">Loads</span>
             <span className="font-medium">{order.loads}</span>
           </div>
+          {/* Rate breakdown */}
+          <div className="flex justify-between border-t border-gray-100 pt-2">
+            <span className="text-gray-500">Haul rate ({order.loads} × ${(order.haulRateCents / 100).toFixed(2)})</span>
+            <span className="font-medium">${((order.haulRateCents * order.loads) / 100).toFixed(2)}</span>
+          </div>
+          {order.pitMaterialRateCents > 0 && (
+            <div className="flex justify-between">
+              <span className="text-gray-500">Pit material ({order.loads} × ${(order.pitMaterialRateCents / 100).toFixed(2)})</span>
+              <span className="font-medium">${((order.pitMaterialRateCents * order.loads) / 100).toFixed(2)}</span>
+            </div>
+          )}
           <div className="flex justify-between border-t border-gray-100 pt-2">
             <span className="text-gray-500">Estimated Total</span>
             <span className="font-bold">${(order.totalEstimatedCents / 100).toFixed(2)}</span>

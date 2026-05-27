@@ -4,15 +4,16 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 interface Props {
-  orderId:        string;
-  estimatedLoads: number;
-  haulRateCents:  number;
-  createdAt:      string; // ISO string
+  orderId:              string;
+  estimatedLoads:       number;
+  haulRateCents:        number;
+  pitMaterialRateCents: number;
+  createdAt:            string; // ISO string
 }
 
 type Step = "idle" | "enter" | "confirm";
 
-export default function CompleteHaulButton({ orderId, estimatedLoads, haulRateCents, createdAt }: Props) {
+export default function CompleteHaulButton({ orderId, estimatedLoads, haulRateCents, pitMaterialRateCents, createdAt }: Props) {
   const router = useRouter();
   const [step,        setStep]        = useState<Step>("idle");
   const [actualLoads, setActualLoads] = useState(estimatedLoads);
@@ -46,8 +47,9 @@ export default function CompleteHaulButton({ orderId, estimatedLoads, haulRateCe
       .catch(() => {/* ignore */});
   }, [step, orderId]);
 
-  const actualTotal    = actualLoads * haulRateCents;
-  const estimatedTotal = estimatedLoads * haulRateCents;
+  const combinedRate   = haulRateCents + pitMaterialRateCents;
+  const actualTotal    = actualLoads    * combinedRate;
+  const estimatedTotal = estimatedLoads * combinedRate;
   const delta          = actualTotal - estimatedTotal;
 
   async function complete() {
@@ -117,6 +119,16 @@ export default function CompleteHaulButton({ orderId, estimatedLoads, haulRateCe
         {/* Cost preview */}
         <div className="bg-gray-50 rounded-xl p-3 text-xs space-y-1">
           <div className="flex justify-between">
+            <span className="text-gray-500">Haul ({actualLoads} × {fmt(haulRateCents)})</span>
+            <span className="font-medium text-gray-800">{fmt(actualLoads * haulRateCents)}</span>
+          </div>
+          {pitMaterialRateCents > 0 && (
+            <div className="flex justify-between">
+              <span className="text-gray-500">Pit material ({actualLoads} × {fmt(pitMaterialRateCents)})</span>
+              <span className="font-medium text-gray-800">{fmt(actualLoads * pitMaterialRateCents)}</span>
+            </div>
+          )}
+          <div className="flex justify-between border-t border-gray-200 pt-1">
             <span className="text-gray-500">You will be charged</span>
             <span className="font-bold text-gray-900">{fmt(actualTotal)}</span>
           </div>
@@ -171,6 +183,16 @@ export default function CompleteHaulButton({ orderId, estimatedLoads, haulRateCe
           <div className="flex justify-between text-amber-600 text-xs">
             <span>Original estimate</span>
             <span className="line-through">{estimatedLoads} loads</span>
+          </div>
+        )}
+        <div className="flex justify-between text-amber-700 text-xs">
+          <span>Haul ({actualLoads} × {fmt(haulRateCents)})</span>
+          <span>{fmt(actualLoads * haulRateCents)}</span>
+        </div>
+        {pitMaterialRateCents > 0 && (
+          <div className="flex justify-between text-amber-700 text-xs">
+            <span>Pit material ({actualLoads} × {fmt(pitMaterialRateCents)})</span>
+            <span>{fmt(actualLoads * pitMaterialRateCents)}</span>
           </div>
         )}
         <div className="flex justify-between text-amber-700 border-t border-amber-200 pt-2">

@@ -229,6 +229,7 @@ export default async function OrderHistoryPage({
                             orderId={o.id}
                             estimatedLoads={o.loads}
                             haulRateCents={o.haulRateCents}
+                            pitMaterialRateCents={o.pitMaterialRateCents}
                             createdAt={o.createdAt.toISOString()}
                           />
                         </div>

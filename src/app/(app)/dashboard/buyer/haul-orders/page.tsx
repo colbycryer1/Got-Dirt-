@@ -330,6 +330,7 @@ function PlacedOrderRow({ order, statusColors, logCount }: { order: PlacedOrder;
             orderId={order.id}
             estimatedLoads={order.loads}
             haulRateCents={order.haulRateCents}
+            pitMaterialRateCents={order.pitMaterialRateCents}
             createdAt={order.createdAt.toISOString()}
           />
         </div>
