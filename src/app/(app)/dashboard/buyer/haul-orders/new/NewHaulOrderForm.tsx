@@ -426,11 +426,12 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
           <select required value={pitId} onChange={(e) => setPitId(e.target.value)} className={inputClass}>
             <option value="">— Select a pit —</option>
             {pits.map((p) => {
-              const lockedRate = pitHaulRates[p.id];
+              const lockedRate  = pitHaulRates[p.id];
+              const matRate     = p.borrowRateCents > 0 ? `· Material $${(p.borrowRateCents / 100).toFixed(2)}/load` : "· No material rate";
+              const haulRateStr = lockedRate ? `· Haul locked $${(lockedRate / 100).toFixed(2)}/load` : "";
               return (
                 <option key={p.id} value={p.id}>
-                  {p.name}{p.address ? ` — ${p.address}` : ""}, {p.state}
-                  {lockedRate ? ` · Haul rate locked $${(lockedRate / 100).toFixed(2)}/load` : ""}
+                  {p.name}{p.address ? ` — ${p.address}` : ""}, {p.state} {matRate} {haulRateStr}
                 </option>
               );
             })}
@@ -553,28 +554,36 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
           <p className="text-sm font-semibold text-gray-700 mb-3">
             {mode === "self" ? "Cost Summary (Internal)" : "Order Summary"}
           </p>
+
+          {/* Haul rate */}
           <div className="flex justify-between text-sm">
             <span className="text-gray-500">
-              Haul · {loadsNum} load{loadsNum !== 1 ? "s" : ""} × ${(rateInCents / 100).toFixed(2)}
+              Haul rate · {loadsNum} load{loadsNum !== 1 ? "s" : ""} × ${(rateInCents / 100).toFixed(2)}
             </span>
             <span className="font-semibold">${(haulSubtotal / 100).toFixed(2)}</span>
           </div>
-          {matSubtotal > 0 && (
+
+          {/* Pit material rate — always shown when a pit is selected and mode isn't self */}
+          {mode !== "self" && selectedPit && (
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">
-                Pit material · {loadsNum} load{loadsNum !== 1 ? "s" : ""} × ${(pitMaterialRate / 100).toFixed(2)}
+                Pit load rate · {loadsNum} load{loadsNum !== 1 ? "s" : ""}
+                {pitMaterialRate > 0 ? ` × $${(pitMaterialRate / 100).toFixed(2)}` : " (no rate set)"}
               </span>
-              <span className="font-semibold">${(matSubtotal / 100).toFixed(2)}</span>
+              <span className="font-semibold">
+                {pitMaterialRate > 0 ? `$${(matSubtotal / 100).toFixed(2)}` : "$0.00"}
+              </span>
             </div>
           )}
-          {matSubtotal > 0 && (
-            <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
-              <span className="text-gray-500">Estimated total</span>
-              <span className="font-bold">${(total / 100).toFixed(2)}</span>
-            </div>
-          )}
+
+          {/* Estimated total */}
+          <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
+            <span className="text-gray-500">Estimated total</span>
+            <span className="font-bold">${(total / 100).toFixed(2)}</span>
+          </div>
+
           {mode !== "self" && (
-            <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
+            <div className="flex justify-between text-sm">
               <span className="text-gray-500">Authorization hold</span>
               <span className="font-bold text-amber-700">${(deposit / 100).toFixed(2)}</span>
             </div>
