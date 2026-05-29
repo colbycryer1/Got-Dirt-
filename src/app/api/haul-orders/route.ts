@@ -24,6 +24,7 @@ const createSchema = z.object({
   depositHoldCents:      z.number().int().min(0),
   notes:         z.string().optional(),
   expiresAt:     z.string().datetime().optional(),
+  pitOperationType: z.enum(["PICKUP", "DUMP"]).optional().default("PICKUP"),
 }).refine((d) => !(d.driverId && d.carrierId), {
   message: "Cannot assign both a driver and a carrier",
 }).refine((d) => d.broadcast || d.buyerOperating || d.driverId || d.carrierId, {
@@ -215,11 +216,14 @@ export async function POST(req: Request) {
       where:  { id: orderData.pitId },
       select: {
         borrowRateCents: true,
+        dumpRateCents:   true,
         name:  true,
         owner: { select: { email: true, name: true } },
       },
     });
-    pitMaterialRateCents = pit?.borrowRateCents ?? 0;
+    pitMaterialRateCents = orderData.pitOperationType === "DUMP"
+      ? (pit?.dumpRateCents   ?? 0)
+      : (pit?.borrowRateCents ?? 0);
     pitOwnerEmail        = pit?.owner?.email    ?? null;
     pitOwnerName         = pit?.owner?.name     ?? null;
     pitName              = pit?.name             ?? null;

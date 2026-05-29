@@ -29,6 +29,7 @@ export default async function NewHaulOrderPage() {
         id: true, name: true, address: true, state: true, pitType: true,
         dailyHaulRateCents: true, dailyHaulRateLockedAt: true,
         borrowRateCents: true,
+        dumpRateCents:   true,
       },
       orderBy: [{ state: "asc" }, { name: "asc" }],
     }),
@@ -76,6 +77,7 @@ export default async function NewHaulOrderPage() {
               state:           p.state,
               pitType:         p.pitType,
               borrowRateCents: p.borrowRateCents ?? 0,
+              dumpRateCents:   p.dumpRateCents   ?? 0,
             }))}
             pitHaulRates={pitHaulRates}
             drivers={publicDrivers.map((d) => ({
