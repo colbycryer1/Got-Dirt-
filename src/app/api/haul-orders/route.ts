@@ -247,29 +247,36 @@ export async function POST(req: Request) {
 
   const loadType = orderData.pitOperationType === "DUMP" ? "DUMP" : "PICK_UP";
 
-  const order = await prisma.haulOrder.create({
-    data: {
-      buyerUserId:  session.user.id,
-      ...orderData,
-      haulRateCents:         resolvedHaulRate,
-      totalEstimatedCents,
-      depositHoldCents,
-      scheduledDate:         new Date(orderData.scheduledDate),
-      expiresAt:             orderData.expiresAt ? new Date(orderData.expiresAt) : undefined,
-      status:                isBuyerOp ? "CONFIRMED" : undefined,
-      broadcast,
-      pitRateBroadcast,
-      platformFeePercent:    haulFeePercent,
-      platformFeeCents:      haulPlatformFee,
-      haulerPayoutCents,
-      pitMaterialRateCents,
-      pitMaterialFeeCents:   matPlatformFee,
-      pitMaterialPayoutCents: pitMaterialPayout,
-      loadType,
-      haulCostCents: haulTotal,
-      dirtCostCents: materialTotal,
-    },
-  });
+  let order;
+  try {
+    order = await prisma.haulOrder.create({
+      data: {
+        buyerUserId:  session.user.id,
+        ...orderData,
+        haulRateCents:         resolvedHaulRate,
+        totalEstimatedCents,
+        depositHoldCents,
+        scheduledDate:         new Date(orderData.scheduledDate),
+        expiresAt:             orderData.expiresAt ? new Date(orderData.expiresAt) : undefined,
+        status:                isBuyerOp ? "CONFIRMED" : undefined,
+        broadcast,
+        pitRateBroadcast,
+        platformFeePercent:    haulFeePercent,
+        platformFeeCents:      haulPlatformFee,
+        haulerPayoutCents,
+        pitMaterialRateCents,
+        pitMaterialFeeCents:   matPlatformFee,
+        pitMaterialPayoutCents: pitMaterialPayout,
+        loadType,
+        haulCostCents: haulTotal,
+        dirtCostCents: materialTotal,
+      },
+    });
+  } catch (dbErr: unknown) {
+    const msg = dbErr instanceof Error ? dbErr.message : String(dbErr);
+    console.error("[haul-orders] create failed:", msg);
+    return NextResponse.json({ error: `Order creation failed: ${msg.slice(0, 200)}` }, { status: 500 });
+  }
 
   // Create a Stripe hold whenever there is a deposit to collect.
   // Buyer-op orders skip the haul charge but still owe the pit for material.
