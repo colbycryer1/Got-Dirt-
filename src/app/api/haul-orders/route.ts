@@ -232,18 +232,20 @@ export async function POST(req: Request) {
   const haulTotal           = resolvedHaulRate * orderData.loads;
   const materialTotal       = pitMaterialRateCents * orderData.loads;
   const totalEstimatedCents = haulTotal + materialTotal;
-  // Full-amount authorization: hold the entire estimated charge so the platform
-  // always has sufficient funds to pay both the hauler and pit owner at completion.
+  // 25% deposit: buyer authorizes a partial hold now; the remainder is captured
+  // (or charged via off-session PI) at completion using actual loads.
   // Buyer-op trucks are cost-tracking only (not billed through Got Dirt), so
-  // only the pit material charge needs to be authorized.
+  // only the pit material charge factors into the deposit.
   const depositHoldCents = isBuyerOp
-    ? materialTotal           // pit material only — truck cost is not billed
-    : totalEstimatedCents;    // haul + pit material, released/adjusted at completion
+    ? Math.round(materialTotal * 0.25)      // pit material only — truck cost is not billed
+    : Math.round(totalEstimatedCents * 0.25); // 25% of haul + pit material estimate
 
   const haulPlatformFee       = isBuyerOp ? 0 : Math.round(haulTotal * haulFeePercent / 100);
   const haulerPayoutCents     = isBuyerOp ? 0 : haulTotal - haulPlatformFee;
   const matPlatformFee        = Math.round(materialTotal * matFeePercent / 100);
   const pitMaterialPayout     = materialTotal - matPlatformFee;
+
+  const loadType = orderData.pitOperationType === "DUMP" ? "DUMP" : "PICK_UP";
 
   const order = await prisma.haulOrder.create({
     data: {
@@ -263,6 +265,9 @@ export async function POST(req: Request) {
       pitMaterialRateCents,
       pitMaterialFeeCents:   matPlatformFee,
       pitMaterialPayoutCents: pitMaterialPayout,
+      loadType,
+      haulCostCents: haulTotal,
+      dirtCostCents: materialTotal,
     },
   });
 
@@ -283,6 +288,16 @@ export async function POST(req: Request) {
       metadata: {
         haulOrderId:  order.id,
         orderedBy:    session.user.id,
+        load_type:    loadType,
+        pit_id:       orderData.pitId ?? "",
+        driver_id:    orderData.driverId ?? "",
+        driver_rate:  String(resolvedHaulRate),
+        dirt_rate:    String(pitMaterialRateCents),
+        loads:        String(orderData.loads),
+        haul_cost:    String(haulTotal),
+        dirt_cost:    String(materialTotal),
+        subtotal:     String(totalEstimatedCents),
+        deposit_hold: String(depositHoldCents),
       },
       description: piDescription,
     });

@@ -24,7 +24,7 @@ interface Props {
   carriers:     Carrier[];
 }
 
-const DEPOSIT_PERCENT    = 100;
+const DEPOSIT_PERCENT    = 25;
 const RATE_FLOOR_BUFFER  = 1000; // $10 in cents — buyer can't go more than $10 below lowest driver
 
 const TRUCK_TYPES = [
@@ -35,14 +35,22 @@ const TRUCK_TYPES = [
 
 type Mode          = "direct" | "broadcast" | "self";
 type HaulerType    = "driver" | "carrier";
-type PitOperation  = "PICKUP" | "DUMP";
+type LoadType      = "PICK_UP" | "DUMP";
+
+// Return which load types a pit supports
+function pitLoadTypes(pitType: string): LoadType[] {
+  if (pitType === "WASTE")   return ["DUMP"];
+  if (pitType === "BORROW" || pitType === "PRIVATE_BORROW_PIT" || pitType === "QUARRY") return ["PICK_UP"];
+  if (pitType === "WASTE_BORROW") return ["PICK_UP", "DUMP"];
+  return ["PICK_UP"];
+}
 
 export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers, carriers }: Props) {
   const router = useRouter();
 
   const [mode,            setMode]            = useState<Mode>("direct");
   const [haulerType,      setHaulerType]      = useState<HaulerType>("driver");
-  const [pitOperation,    setPitOperation]    = useState<PitOperation>("PICKUP");
+  const [loadType,        setLoadType]        = useState<LoadType>("PICK_UP");
   const [selectedId,      setSelectedId]      = useState("");
   const [broadcastRate,   setBroadcastRate]   = useState("");
   const [selfTruckType,   setSelfTruckType]   = useState("");
@@ -62,17 +70,28 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
   const list     = haulerType === "driver" ? drivers : carriers;
   const selected = mode === "direct" ? list.find((x) => x.id === selectedId) : null;
 
-  // Filter pits by the selected operation type
-  const availablePits = pits.filter((p) => {
-    if (pitOperation === "PICKUP") return p.pitType === "BORROW" || p.pitType === "WASTE_BORROW";
-    if (pitOperation === "DUMP")   return p.pitType === "WASTE"  || p.pitType === "WASTE_BORROW";
-    return true;
-  });
+  const selectedPit  = pits.find((p) => p.id === pitId);
+  const availableLoadTypes: LoadType[] = selectedPit ? pitLoadTypes(selectedPit.pitType) : [];
 
-  // Pit's locked haul rate today (if any) and material rate for the selected operation
+  // Auto-select load type when a pit is chosen / changes
+  useEffect(() => {
+    if (!selectedPit) return;
+    const types = pitLoadTypes(selectedPit.pitType);
+    if (types.length === 1) setLoadType(types[0]);
+    else if (!types.includes(loadType)) setLoadType(types[0]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pitId]);
+
+  // Reset pit when mode changes
+  const handleModeChange = (m: Mode) => {
+    setMode(m);
+    setSelectedId("");
+    setSuggestion(null);
+  };
+
+  // Pit's locked haul rate today (if any) and material rate for the selected load type
   const pitLockedRate: number | null = pitId ? (pitHaulRates[pitId] ?? null) : null;
-  const selectedPit     = pits.find((p) => p.id === pitId);
-  const pitMaterialRate = pitOperation === "DUMP"
+  const pitMaterialRate = loadType === "DUMP"
     ? (selectedPit?.dumpRateCents   ?? 0)
     : (selectedPit?.borrowRateCents ?? 0);
 
@@ -83,10 +102,10 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
     : Math.round(parseFloat(selfRatePerLoad || "0") * 100);
 
   const loadsNum       = parseInt(loads) || 0;
-  const haulSubtotal   = rateInCents * loadsNum;
-  const matSubtotal    = mode === "self" ? 0 : pitMaterialRate * loadsNum;
-  const total          = haulSubtotal + matSubtotal;
-  const deposit        = mode === "self" ? 0 : Math.round(total * DEPOSIT_PERCENT / 100);
+  const haulCost       = rateInCents * loadsNum;
+  const dirtCost       = mode === "self" ? 0 : pitMaterialRate * loadsNum;
+  const subtotal       = haulCost + dirtCost;
+  const depositHold    = mode === "self" ? 0 : Math.round(subtotal * DEPOSIT_PERCENT / 100);
 
   // Lowest active driver rate (for rate floor in broadcast mode)
   const lowestDriverRate = drivers.length > 0
@@ -130,15 +149,18 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
         ? new Date(Date.now() + parseInt(expiresIn) * 60 * 1000).toISOString()
         : undefined;
 
+      // Map PICK_UP → PICKUP for pitOperationType (existing API field)
+      const pitOperationType = loadType === "DUMP" ? "DUMP" : "PICKUP";
+
       const body: Record<string, unknown> = {
         pitId,
-        pitOperationType:    pitOperation,
+        pitOperationType,
         projectId:           projectId || undefined,
         scheduledDate:       new Date(scheduledDate).toISOString(),
         loads:               loadsNum,
         haulRateCents:       rateInCents,
-        totalEstimatedCents: total,
-        depositHoldCents:    deposit,
+        totalEstimatedCents: subtotal,
+        depositHoldCents:    depositHold,
         notes:               notes || undefined,
       };
 
@@ -197,7 +219,7 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
             { key: "self",      label: "Buyer / Operator" },
           ] as { key: Mode; label: string }[]).map((m) => (
             <button key={m.key} type="button"
-              onClick={() => { setMode(m.key); setSelectedId(""); setSuggestion(null); }}
+              onClick={() => handleModeChange(m.key)}
               className={`flex-1 py-2.5 text-sm font-semibold transition-colors
                 ${mode === m.key ? "bg-amber-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
               {m.label}
@@ -278,7 +300,6 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
       {mode === "broadcast" && (
         <>
           {pitLockedRate !== null ? (
-            /* Pit-rate broadcast — rate is locked by pit owner */
             <div className="bg-green-50 border border-green-200 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -290,7 +311,6 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
               </p>
             </div>
           ) : (
-            /* Buyer-rate broadcast */
             <div className="space-y-2">
               <label className={labelClass}>Your Offered Rate (per load) *</label>
               <div className="relative">
@@ -307,14 +327,12 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
                 />
               </div>
 
-              {/* Rate floor warning */}
               {rateFloor !== null && rateInCents > 0 && rateInCents < rateFloor && (
                 <p className="text-xs text-red-600 font-semibold">
                   Rate is more than $10 below the lowest active driver (${(lowestDriverRate! / 100).toFixed(2)}/load). Minimum: ${(rateFloor / 100).toFixed(2)}/load.
                 </p>
               )}
 
-              {/* Market rate suggestion */}
               {suggestion && (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-xs space-y-1">
                   <p className="font-semibold text-blue-800">Market Rate Insight · Got Dirt? Data</p>
@@ -342,7 +360,6 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
                 <em>Based on data collected by Got Dirt LLC. Suggestions are for reference only.</em>
               </p>
 
-              {/* Active driver rates reference — collapsible */}
               {drivers.length > 0 && (
                 <div className="border border-gray-200 rounded-xl overflow-hidden">
                   <button
@@ -429,64 +446,87 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
         </>
       )}
 
-      {/* Pit operation type + pit selector */}
+      {/* ── Pickup Pit ─────────────────────────────────────────────────────── */}
       <div>
-        <label className={labelClass}>Pit Operation *</label>
-
-        {/* Pick Up / Dump toggle */}
-        <div className="flex rounded-xl border border-gray-200 overflow-hidden mb-3">
-          {([
-            { key: "PICKUP", label: "Pick Up Material", desc: "Hauler picks up dirt, fill, or aggregate from the pit" },
-            { key: "DUMP",   label: "Dump / Waste",     desc: "Hauler dumps spoil, debris, or waste material at the pit" },
-          ] as { key: PitOperation; label: string; desc: string }[]).map((op) => (
-            <button key={op.key} type="button"
-              onClick={() => { setPitOperation(op.key); setPitId(""); }}
-              title={op.desc}
-              className={`flex-1 py-2.5 text-sm font-semibold transition-colors
-                ${pitOperation === op.key ? "bg-amber-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
-              {op.label}
-            </button>
-          ))}
-        </div>
-
-        <label className={labelClass}>
-          {pitOperation === "PICKUP" ? "Pickup Pit" : "Dump / Waste Site"} *
-        </label>
-        {availablePits.length === 0 ? (
-          <p className="text-sm text-gray-400 py-2">
-            No active {pitOperation === "PICKUP" ? "borrow pits" : "waste sites"} available.
-          </p>
+        <label className={labelClass}>Pickup Pit *</label>
+        {pits.length === 0 ? (
+          <p className="text-sm text-gray-400 py-2">No active pits available.</p>
         ) : (
-          <select required value={pitId} onChange={(e) => setPitId(e.target.value)} className={inputClass}>
-            <option value="">— Select a {pitOperation === "PICKUP" ? "pit" : "dump site"} —</option>
-            {availablePits.map((p) => {
+          <select required value={pitId} onChange={(e) => { setPitId(e.target.value); }} className={inputClass}>
+            <option value="">— Select a pit —</option>
+            {pits.map((p) => {
               const lockedRate  = pitHaulRates[p.id];
-              const matRate     = pitOperation === "DUMP"
-                ? (p.dumpRateCents   > 0 ? `· Dump $${(p.dumpRateCents   / 100).toFixed(2)}/load` : "· No dump rate")
-                : (p.borrowRateCents > 0 ? `· Material $${(p.borrowRateCents / 100).toFixed(2)}/load` : "· No material rate");
-              const haulRateStr = lockedRate ? `· Haul locked $${(lockedRate / 100).toFixed(2)}/load` : "";
+              const types = pitLoadTypes(p.pitType);
+              const rateStr = types.includes("DUMP") && types.includes("PICK_UP")
+                ? `· Borrow $${(p.borrowRateCents / 100).toFixed(2)} / Dump $${(p.dumpRateCents / 100).toFixed(2)}`
+                : types.includes("DUMP")
+                  ? (p.dumpRateCents > 0   ? `· Dump $${(p.dumpRateCents   / 100).toFixed(2)}/load` : "· No dump rate")
+                  : (p.borrowRateCents > 0 ? `· Material $${(p.borrowRateCents / 100).toFixed(2)}/load` : "· No material rate");
+              const haulRateStr = lockedRate ? ` · Haul locked $${(lockedRate / 100).toFixed(2)}/load` : "";
               return (
                 <option key={p.id} value={p.id}>
-                  {p.name}{p.address ? ` — ${p.address}` : ""}, {p.state} {matRate} {haulRateStr}
+                  {p.name}{p.address ? ` — ${p.address}` : ""}, {p.state} {rateStr}{haulRateStr}
                 </option>
               );
             })}
           </select>
         )}
 
-        {/* Pit rate card — shown once a pit is selected */}
+        {/* ── Load Type — shown after pit is selected ─────────────────────── */}
+        {selectedPit && availableLoadTypes.length > 0 && (
+          <div className="mt-4">
+            <label className={labelClass}>Load Type *</label>
+            {availableLoadTypes.length === 1 ? (
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-amber-200 bg-amber-50">
+                <span className="text-sm font-semibold text-amber-800">
+                  {availableLoadTypes[0] === "PICK_UP" ? "Pick Up Load" : "Dump Load"}
+                </span>
+                <span className="text-xs text-amber-600 ml-auto">
+                  {availableLoadTypes[0] === "PICK_UP" ? "This pit only accepts pick-up orders" : "This pit only accepts dump orders"}
+                </span>
+              </div>
+            ) : (
+              <div className="flex rounded-xl border border-gray-200 overflow-hidden">
+                {(["PICK_UP", "DUMP"] as LoadType[]).map((lt) => (
+                  <button key={lt} type="button"
+                    onClick={() => setLoadType(lt)}
+                    className={`flex-1 py-2.5 text-sm font-semibold transition-colors
+                      ${loadType === lt ? "bg-amber-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+                    {lt === "PICK_UP" ? "Pick Up Load" : "Dump Load"}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Per-load dirt rate preview */}
+            {pitMaterialRate > 0 && (
+              <p className="text-xs text-amber-700 mt-1.5">
+                {loadType === "DUMP" ? "Dump" : "Material"} rate:&nbsp;
+                <strong>${(pitMaterialRate / 100).toFixed(2)}/load</strong>
+                {" "}— charged per load in addition to the haul rate.
+              </p>
+            )}
+            {pitMaterialRate === 0 && mode !== "self" && (
+              <p className="text-xs text-gray-400 mt-1.5">
+                This pit has no {loadType === "DUMP" ? "dump" : "material"} rate set — you will only be charged the haul rate.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Pit rate card — full detail card once pit is selected */}
         {selectedPit && (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-amber-900">{selectedPit.name}</p>
               <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-semibold">
-                {selectedPit.pitType.replace("_", " / ")}
+                {selectedPit.pitType.replace(/_/g, " / ")}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-3 pt-1">
               <div className="bg-white rounded-lg px-3 py-2 border border-amber-100">
                 <p className="text-xs text-gray-500 mb-0.5">
-                  {pitOperation === "DUMP" ? "Dump rate" : "Material rate"}
+                  {loadType === "DUMP" ? "Dump rate" : "Material rate"}
                 </p>
                 {pitMaterialRate > 0 ? (
                   <p className="text-base font-bold text-gray-900">
@@ -507,20 +547,6 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
                 )}
               </div>
             </div>
-            {pitMaterialRate > 0 && mode !== "self" && (
-              <p className="text-xs text-amber-700">
-                {pitOperation === "DUMP"
-                  ? "Dump rate is charged per load in addition to the haul rate. Both rates are locked at order time."
-                  : "Material rate is charged per load in addition to the haul rate. Both rates are locked at order time."}
-              </p>
-            )}
-            {pitMaterialRate === 0 && mode !== "self" && (
-              <p className="text-xs text-amber-700">
-                {pitOperation === "DUMP"
-                  ? "This site has not set a dump rate — you will only be charged the haul rate."
-                  : "This pit has not set a material rate — you will only be charged the haul rate."}
-              </p>
-            )}
           </div>
         )}
 
@@ -590,49 +616,51 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
         </div>
       )}
 
-      {/* Order summary */}
+      {/* ── Order Summary ─────────────────────────────────────────────────── */}
       {loadsNum > 0 && rateInCents > 0 && (
         <div className="bg-gray-50 rounded-2xl p-5 space-y-2">
           <p className="text-sm font-semibold text-gray-700 mb-3">
             {mode === "self" ? "Cost Summary (Internal)" : "Order Summary"}
           </p>
 
-          {/* Haul rate */}
+          {/* Haul line */}
           <div className="flex justify-between text-sm">
             <span className="text-gray-500">
-              Haul rate · {loadsNum} load{loadsNum !== 1 ? "s" : ""} × ${(rateInCents / 100).toFixed(2)}
+              Haul / {mode === "direct" ? (haulerType === "driver" ? "driver" : "carrier") : mode === "broadcast" ? "broadcast" : "operator"} · {loadsNum} load{loadsNum !== 1 ? "s" : ""} × ${(rateInCents / 100).toFixed(2)}
             </span>
-            <span className="font-semibold">${(haulSubtotal / 100).toFixed(2)}</span>
+            <span className="font-semibold">${(haulCost / 100).toFixed(2)}</span>
           </div>
 
-          {/* Pit rate line — always shown when a pit is selected and mode isn't self */}
+          {/* Dirt line — shown when a pit is selected and not self-haul */}
           {mode !== "self" && selectedPit && (
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">
-                {pitOperation === "DUMP" ? "Dump rate" : "Pit load rate"} · {loadsNum} load{loadsNum !== 1 ? "s" : ""}
+                Dirt · {loadType === "DUMP" ? "Dump" : "Pick Up"} · {loadsNum} load{loadsNum !== 1 ? "s" : ""}
                 {pitMaterialRate > 0 ? ` × $${(pitMaterialRate / 100).toFixed(2)}` : " (no rate set)"}
               </span>
               <span className="font-semibold">
-                {pitMaterialRate > 0 ? `$${(matSubtotal / 100).toFixed(2)}` : "$0.00"}
+                {pitMaterialRate > 0 ? `$${(dirtCost / 100).toFixed(2)}` : "$0.00"}
               </span>
             </div>
           )}
 
-          {/* Estimated total */}
+          {/* Subtotal */}
           <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
-            <span className="text-gray-500">Estimated total</span>
-            <span className="font-bold">${(total / 100).toFixed(2)}</span>
+            <span className="text-gray-500">Subtotal</span>
+            <span className="font-bold">${(subtotal / 100).toFixed(2)}</span>
           </div>
 
+          {/* Deposit hold */}
           {mode !== "self" && (
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Authorization hold</span>
-              <span className="font-bold text-amber-700">${(deposit / 100).toFixed(2)}</span>
+              <span className="text-gray-500">Deposit hold ({DEPOSIT_PERCENT}%)</span>
+              <span className="font-bold text-amber-700">${(depositHold / 100).toFixed(2)}</span>
             </div>
           )}
+
           {mode === "self"
             ? <p className="text-xs text-gray-400">Internal cost only — no charge collected. Exported to your project accounting.</p>
-            : <p className="text-xs text-gray-400">Full amount authorized now. You are only charged for actual loads delivered — unused funds are released automatically.</p>
+            : <p className="text-xs text-gray-400">Card is authorized now, charged after haul completion.</p>
           }
         </div>
       )}

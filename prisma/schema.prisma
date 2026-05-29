@@ -771,9 +771,14 @@ model HaulOrder {
   haulerPayoutCents  Int   @default(0)  // what the driver/carrier receives
 
   // Pit material charge — locked from pit at order time, settled alongside haul
-  pitMaterialRateCents   Int @default(0)  // pit's per-load material charge (borrowRateCents)
+  pitMaterialRateCents   Int @default(0)  // pit's per-load material charge (borrowRateCents or dumpRateCents)
   pitMaterialFeeCents    Int @default(0)  // platform fee on material portion (feePercent %)
   pitMaterialPayoutCents Int @default(0)  // net paid to pit owner for materials
+
+  // Load type + cost snapshot (locked at order creation from estimated loads)
+  loadType      String @default("PICK_UP")  // "PICK_UP" | "DUMP"
+  dirtCostCents Int    @default(0)          // pitMaterialRateCents × loads (estimated)
+  haulCostCents Int    @default(0)          // haulRateCents × loads (estimated)
 
   stripePaymentIntentId String? @unique
 
