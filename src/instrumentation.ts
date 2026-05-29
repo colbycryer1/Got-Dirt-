@@ -1,10 +1,12 @@
 // Runs once per server cold-start (Vercel lambda init, local dev restart).
-// Adds any HaulOrder columns that were committed without a migration file.
+// Adds any schema columns that were committed without a migration file.
 // Uses ADD COLUMN IF NOT EXISTS so it is fully idempotent.
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  const { prisma } = await import("@/lib/prisma");
+
+  // ── HaulOrder ────────────────────────────────────────────────────────────
   try {
-    const { prisma } = await import("@/lib/prisma");
     await prisma.$executeRawUnsafe(`
       ALTER TABLE "HaulOrder"
         ADD COLUMN IF NOT EXISTS "actualLoads"            INTEGER,
@@ -39,7 +41,56 @@ export async function register() {
     `);
     console.log("[startup] HaulOrder schema sync: OK");
   } catch (err) {
-    // Non-fatal — log and continue. Columns may already exist or DB may be unreachable.
     console.error("[startup] HaulOrder schema sync failed:", err);
+  }
+
+  // ── Pit ──────────────────────────────────────────────────────────────────
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "Pit"
+        ADD COLUMN IF NOT EXISTS "materialRatesCents"   JSONB            NOT NULL DEFAULT '{}',
+        ADD COLUMN IF NOT EXISTS "operatorProvided"     BOOLEAN          NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS "equipmentProvided"    BOOLEAN          NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS "equipmentNotes"       TEXT,
+        ADD COLUMN IF NOT EXISTS "hoursOpen"            TEXT,
+        ADD COLUMN IF NOT EXISTS "hoursClose"           TEXT,
+        ADD COLUMN IF NOT EXISTS "geofenceRadiusMeters" INTEGER          NOT NULL DEFAULT 200,
+        ADD COLUMN IF NOT EXISTS "contactName"          TEXT,
+        ADD COLUMN IF NOT EXISTS "contactPhone"         TEXT,
+        ADD COLUMN IF NOT EXISTS "contactEmail"         TEXT,
+        ADD COLUMN IF NOT EXISTS "materialTypes"        TEXT[]           NOT NULL DEFAULT '{}',
+        ADD COLUMN IF NOT EXISTS "dailyHaulRateCents"    INTEGER,
+        ADD COLUMN IF NOT EXISTS "dailyHaulRateLockedAt" TIMESTAMPTZ
+    `);
+    console.log("[startup] Pit schema sync: OK");
+  } catch (err) {
+    console.error("[startup] Pit schema sync failed:", err);
+  }
+
+  // ── DriverProfile ────────────────────────────────────────────────────────
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "DriverProfile"
+        ADD COLUMN IF NOT EXISTS "additionalDocUrls"     TEXT[]    NOT NULL DEFAULT '{}',
+        ADD COLUMN IF NOT EXISTS "liveLocationEnabled"   BOOLEAN   NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS "currentLat"            DOUBLE PRECISION,
+        ADD COLUMN IF NOT EXISTS "currentLng"            DOUBLE PRECISION,
+        ADD COLUMN IF NOT EXISTS "lastLocationAt"        TIMESTAMPTZ
+    `);
+    console.log("[startup] DriverProfile schema sync: OK");
+  } catch (err) {
+    console.error("[startup] DriverProfile schema sync failed:", err);
+  }
+
+  // ── CarrierProfile ───────────────────────────────────────────────────────
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "CarrierProfile"
+        ADD COLUMN IF NOT EXISTS "website"       TEXT,
+        ADD COLUMN IF NOT EXISTS "haulRateCents" INTEGER
+    `);
+    console.log("[startup] CarrierProfile schema sync: OK");
+  } catch (err) {
+    console.error("[startup] CarrierProfile schema sync failed:", err);
   }
 }
