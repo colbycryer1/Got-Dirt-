@@ -278,34 +278,61 @@ export async function POST(req: Request) {
     const piDescription = isBuyerOp
       ? `Got Dirt? — Pit material authorization (${parsed.data.loads} load${parsed.data.loads !== 1 ? "s" : ""})`
       : `Got Dirt? — Haul authorization (${parsed.data.loads} load${parsed.data.loads !== 1 ? "s" : ""})`;
-    const pi = await stripe.paymentIntents.create({
+    const piMetadata = {
+      haulOrderId:  order.id,
+      orderedBy:    session.user.id,
+      load_type:    loadType,
+      pit_id:       orderData.pitId ?? "",
+      driver_id:    orderData.driverId ?? "",
+      driver_rate:  String(resolvedHaulRate),
+      dirt_rate:    String(pitMaterialRateCents),
+      loads:        String(orderData.loads),
+      haul_cost:    String(haulTotal),
+      dirt_cost:    String(materialTotal),
+      subtotal:     String(totalEstimatedCents),
+      deposit_hold: String(depositHoldCents),
+    };
+
+    const createPI = async (cid: string) => stripe.paymentIntents.create({
       amount:         depositHoldCents,
       currency:       "usd",
-      customer:       customerId,
+      customer:       cid,
       capture_method: "manual",
-      // allow_redirects: "never" keeps manual-capture compatible with redirect-based methods
       automatic_payment_methods: { enabled: true, allow_redirects: "never" },
-      metadata: {
-        haulOrderId:  order.id,
-        orderedBy:    session.user.id,
-        load_type:    loadType,
-        pit_id:       orderData.pitId ?? "",
-        driver_id:    orderData.driverId ?? "",
-        driver_rate:  String(resolvedHaulRate),
-        dirt_rate:    String(pitMaterialRateCents),
-        loads:        String(orderData.loads),
-        haul_cost:    String(haulTotal),
-        dirt_cost:    String(materialTotal),
-        subtotal:     String(totalEstimatedCents),
-        deposit_hold: String(depositHoldCents),
-      },
-      description: piDescription,
+      metadata:       piMetadata,
+      description:    piDescription,
     });
-    await prisma.haulOrder.update({
-      where: { id: order.id },
-      data:  { stripePaymentIntentId: pi.id },
-    });
-    clientSecret = pi.client_secret;
+
+    try {
+      const pi = await createPI(customerId);
+      await prisma.haulOrder.update({ where: { id: order.id }, data: { stripePaymentIntentId: pi.id } });
+      clientSecret = pi.client_secret;
+    } catch (stripeErr: unknown) {
+      const errMsg = stripeErr instanceof Error ? stripeErr.message : String(stripeErr);
+      // Stale customer ID (test/live mode mismatch, deleted account, etc.) — recreate and retry once
+      if (errMsg.toLowerCase().includes("customer")) {
+        try {
+          const freshCustomer = await stripe.customers.create({
+            email: session.user.email ?? undefined,
+            name:  session.user.name ?? undefined,
+          });
+          await prisma.user.update({
+            where: { id: session.user.id },
+            data:  { stripeCustomerId: freshCustomer.id },
+          });
+          const pi2 = await createPI(freshCustomer.id);
+          await prisma.haulOrder.update({ where: { id: order.id }, data: { stripePaymentIntentId: pi2.id } });
+          clientSecret = pi2.client_secret;
+        } catch (retryErr: unknown) {
+          await prisma.haulOrder.delete({ where: { id: order.id } }).catch(() => {});
+          const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+          return NextResponse.json({ error: `Payment setup failed: ${retryMsg}` }, { status: 500 });
+        }
+      } else {
+        await prisma.haulOrder.delete({ where: { id: order.id } }).catch(() => {});
+        return NextResponse.json({ error: `Payment setup failed: ${errMsg}` }, { status: 500 });
+      }
+    }
   }
 
   // Buyer-op orders need no hauler notifications — skip to response

@@ -184,8 +184,11 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
         body:    JSON.stringify(body),
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? "Failed to create order");
+        const data = await res.json().catch(() => ({}));
+        const errMsg = typeof data.error === "string"
+          ? data.error
+          : (data.error?.formErrors?.[0] ?? Object.values(data.error?.fieldErrors ?? {}).flat()[0] ?? "Failed to create order");
+        throw new Error(errMsg);
       }
       const { order, clientSecret } = await res.json();
       if (clientSecret) {
