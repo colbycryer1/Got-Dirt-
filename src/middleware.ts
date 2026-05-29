@@ -1,9 +1,11 @@
-import { withAuth } from "next-auth/middleware";
-import { NextResponse } from "next/server";
+import { withAuth, NextRequestWithAuth } from "next-auth/middleware";
+import { NextResponse, NextFetchEvent, NextRequest } from "next/server";
 import { UserRole } from "@prisma/client";
 
-export default withAuth(
-  function middleware(req) {
+const CANONICAL_HOSTS = new Set(["gotdirt.us", "www.gotdirt.us"]);
+
+const authMiddleware = withAuth(
+  function middleware(req: NextRequestWithAuth) {
     const token = req.nextauth.token;
     const { pathname } = req.nextUrl;
 
@@ -78,6 +80,22 @@ export default withAuth(
     },
   }
 );
+
+export default function middleware(req: NextRequest, event: NextFetchEvent) {
+  // In production, redirect any non-canonical host to www.gotdirt.us.
+  // This blocks *.vercel.app preview URLs and any other domain aliases.
+  if (process.env.NODE_ENV === "production") {
+    const host = (req.headers.get("host") ?? "").split(":")[0];
+    if (!CANONICAL_HOSTS.has(host)) {
+      const url = req.nextUrl.clone();
+      url.protocol = "https:";
+      url.host = "www.gotdirt.us";
+      return NextResponse.redirect(url, { status: 301 });
+    }
+  }
+
+  return authMiddleware(req as NextRequestWithAuth, event);
+}
 
 export const config = {
   matcher: [
