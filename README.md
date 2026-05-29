@@ -1,6 +1,6 @@
 # Got Dirt
 
-Dirt pit locator app for contractors and truck drivers across Georgia.
+Dirt pit locator app for contractors and truck drivers across the United States.
 
 ## Setup
 
