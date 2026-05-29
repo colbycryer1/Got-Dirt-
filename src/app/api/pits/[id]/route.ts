@@ -9,9 +9,15 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const pit = await prisma.pit.findUnique({ where: { id: params.id } });
-  if (!pit) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ pit });
+  try {
+    const pit = await prisma.pit.findUnique({ where: { id: params.id } });
+    if (!pit) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ pit });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[pits/[id] GET] failed:", msg);
+    return NextResponse.json({ error: "Failed to load pit" }, { status: 500 });
+  }
 }
 
 const updatePitSchema = z.object({

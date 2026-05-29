@@ -35,8 +35,14 @@ export default function PayPage({ params }: { params: { id: string } }) {
   }, [status, router]);
 
   useEffect(() => {
-    fetch(`/api/pits/${params.id}`).then((r) => r.json()).then((d) => setPit(d.pit));
-    fetch("/api/settings").then((r) => r.json()).then((d) => setFeePercent(d.feePercent));
+    fetch(`/api/pits/${params.id}`)
+      .then((r) => r.ok ? r.json() : r.json().catch(() => ({})))
+      .then((d) => { if (d.pit) setPit(d.pit); })
+      .catch(console.error);
+    fetch("/api/settings")
+      .then((r) => r.ok ? r.json() : r.json().catch(() => ({})))
+      .then((d) => { if (typeof d.feePercent === "number") setFeePercent(d.feePercent); })
+      .catch(console.error);
   }, [params.id]);
 
   if (!pit) return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading…</div>;
@@ -58,7 +64,7 @@ export default function PayPage({ params }: { params: { id: string } }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pitId: params.id, transactionType, loads }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setError(data.error ?? "Failed to create payment");
       setCreating(false);

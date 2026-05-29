@@ -26,7 +26,7 @@ export default function ChargeOrderButton({ orderId, loadCount }: { orderId: str
     setLoading(true);
     setError("");
     const res  = await fetch(`/api/orders/${orderId}/charge`);
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) { setError(data.error ?? "Could not load charge details"); }
     else { setPreview(data); }
     setLoading(false);
@@ -36,7 +36,7 @@ export default function ChargeOrderButton({ orderId, loadCount }: { orderId: str
     setCharging(true);
     setError("");
     const res  = await fetch(`/api/orders/${orderId}/charge`, { method: "POST" });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (res.ok) {
       setDone(true);
       router.refresh();

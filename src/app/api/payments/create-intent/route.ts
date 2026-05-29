@@ -27,7 +27,14 @@ export async function POST(req: NextRequest) {
 
   const { pitId, transactionType, loads } = parsed.data;
 
-  const pit = await prisma.pit.findUnique({ where: { id: pitId } });
+  let pit;
+  try {
+    pit = await prisma.pit.findUnique({ where: { id: pitId } });
+  } catch (dbErr) {
+    const msg = dbErr instanceof Error ? dbErr.message : String(dbErr);
+    console.error("[create-intent] pit lookup failed:", msg);
+    return NextResponse.json({ error: "Failed to load pit details. Please try again." }, { status: 500 });
+  }
   if (!pit) return NextResponse.json({ error: "Pit not found" }, { status: 404 });
   if (!pit.accepting) return NextResponse.json({ error: "Pit is not accepting" }, { status: 409 });
 
@@ -70,46 +77,51 @@ export async function POST(req: NextRequest) {
     customerId = contractor.stripeCustomerId;
   }
 
-  // Create transaction record
-  const transaction = await prisma.transaction.create({
-    data: {
-      pitId,
-      contractorId: session.user.id,
-      pitOwnerAccountId: owner.stripeAccountId,
-      transactionType,
-      loads,
-      ratePerLoadCents,
-      subtotalCents: calc.subtotalCents,
-      platformFeeCents: calc.platformFeeCents,
-      ownerPayoutCents: calc.ownerPayoutCents,
-      totalChargeCents: calc.totalChargeCents,
-      platformFeePercent: feePercent,
-    },
-  });
+  // Create transaction record and Stripe PaymentIntent
+  try {
+    const transaction = await prisma.transaction.create({
+      data: {
+        pitId,
+        contractorId:       session.user.id,
+        pitOwnerAccountId:  owner.stripeAccountId,
+        transactionType,
+        loads,
+        ratePerLoadCents,
+        subtotalCents:      calc.subtotalCents,
+        platformFeeCents:   calc.platformFeeCents,
+        ownerPayoutCents:   calc.ownerPayoutCents,
+        totalChargeCents:   calc.totalChargeCents,
+        platformFeePercent: feePercent,
+      },
+    });
 
-  // Create Stripe PaymentIntent
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: calc.totalChargeCents,
-    currency: "usd",
-    customer: customerId as string,
-    metadata: {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount:   calc.totalChargeCents,
+      currency: "usd",
+      customer: customerId as string,
+      metadata: {
+        transactionId: transaction.id,
+        pitId,
+        pitName: pit.name,
+        transactionType,
+        loads: String(loads),
+      },
+      description: `Got Dirt? — ${pit.name} (${transactionType} × ${loads} loads)`,
+    });
+
+    await prisma.transaction.update({
+      where: { id: transaction.id },
+      data:  { stripePaymentIntentId: paymentIntent.id },
+    });
+
+    return NextResponse.json({
+      clientSecret:  paymentIntent.client_secret,
       transactionId: transaction.id,
-      pitId,
-      pitName: pit.name,
-      transactionType,
-      loads: String(loads),
-    },
-    description: `Got Dirt? — ${pit.name} (${transactionType} × ${loads} loads)`,
-  });
-
-  await prisma.transaction.update({
-    where: { id: transaction.id },
-    data: { stripePaymentIntentId: paymentIntent.id },
-  });
-
-  return NextResponse.json({
-    clientSecret: paymentIntent.client_secret,
-    transactionId: transaction.id,
-    calculation: calc,
-  });
+      calculation:   calc,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[create-intent] transaction/PI failed:", msg);
+    return NextResponse.json({ error: `Payment setup failed: ${msg.slice(0, 200)}` }, { status: 500 });
+  }
 }
