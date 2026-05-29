@@ -3,16 +3,15 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { stripe } from "@/lib/stripe";
 import HaulDepositForm from "./HaulDepositForm";
 
 export const metadata = { title: "Confirm Haul Deposit — Got Dirt?" };
 
 export default async function HaulDepositPage({
   params,
-  searchParams,
 }: {
   params: { id: string };
-  searchParams: { secret?: string };
 }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
@@ -26,8 +25,10 @@ export default async function HaulDepositPage({
   });
   if (!order || order.buyerUserId !== session.user.id) redirect("/dashboard/buyer/haul-orders");
 
-  const clientSecret = searchParams.secret;
-  if (!clientSecret) redirect(`/dashboard/buyer/haul-orders`);
+  if (!order.stripePaymentIntentId) redirect("/dashboard/buyer/haul-orders");
+  const pi = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
+  const clientSecret = pi.client_secret;
+  if (!clientSecret) redirect("/dashboard/buyer/haul-orders");
 
   const haulerName = order.carrier?.companyName
     ?? order.carrier?.user.name

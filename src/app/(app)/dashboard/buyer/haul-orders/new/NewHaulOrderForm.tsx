@@ -189,7 +189,7 @@ export default function NewHaulOrderForm({ projects, pits, pitHaulRates, drivers
       }
       const { order, clientSecret } = await res.json();
       if (clientSecret) {
-        router.push(`/dashboard/buyer/haul-orders/${order.id}/pay?secret=${encodeURIComponent(clientSecret)}`);
+        router.push(`/dashboard/buyer/haul-orders/${order.id}/pay`);
       } else {
         router.push("/dashboard/buyer/haul-orders");
         router.refresh();
