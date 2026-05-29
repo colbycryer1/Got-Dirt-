@@ -104,7 +104,7 @@ export async function POST(req: Request) {
     customerId = customer.id;
   }
 
-  const { broadcast, ...orderData } = parsed.data;
+  const { broadcast, pitOperationType, ...orderData } = parsed.data;
 
   const isBuyerOp = parsed.data.buyerOperating === true;
 
@@ -221,7 +221,7 @@ export async function POST(req: Request) {
         owner: { select: { email: true, name: true } },
       },
     });
-    pitMaterialRateCents = orderData.pitOperationType === "DUMP"
+    pitMaterialRateCents = pitOperationType === "DUMP"
       ? (pit?.dumpRateCents   ?? 0)
       : (pit?.borrowRateCents ?? 0);
     pitOwnerEmail        = pit?.owner?.email    ?? null;
@@ -245,7 +245,7 @@ export async function POST(req: Request) {
   const matPlatformFee        = Math.round(materialTotal * matFeePercent / 100);
   const pitMaterialPayout     = materialTotal - matPlatformFee;
 
-  const loadType = orderData.pitOperationType === "DUMP" ? "DUMP" : "PICK_UP";
+  const loadType = pitOperationType === "DUMP" ? "DUMP" : "PICK_UP";
 
   let order;
   try {
