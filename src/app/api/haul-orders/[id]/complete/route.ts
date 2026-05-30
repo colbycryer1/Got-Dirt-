@@ -61,9 +61,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const STRIPE_MIN_CENTS = 50;
 
     // ── Stripe charge logic ──────────────────────────────────────────────────
-    // The authorization (depositHoldCents) was set to the full estimated amount at order creation,
-    // so chargeableCents ≤ depositHoldCents in the normal case (partial capture releases the rest).
-    // An overage PI is only needed when actual loads exceed the estimate.
+    // The authorization (depositHoldCents) equals the full estimated amount, so
+    // chargeableCents ≤ depositHoldCents in the normal case (partial capture
+    // releases the remainder automatically). An overage PI is only needed when
+    // actual loads exceed the estimate.
+    //
+    // collectedCents tracks what was actually charged so payouts never exceed
+    // what was collected.
+    let collectedCents = 0;
+
     if (order.stripePaymentIntentId && chargeableCents > 0) {
       const captureAmount = Math.max(chargeableCents, STRIPE_MIN_CENTS);
 
@@ -72,7 +78,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           return await stripe.paymentIntents.capture(piId, opts);
         } catch (e: unknown) {
           const msg = e instanceof Error ? e.message : String(e);
-          // Already captured = money already collected on a previous attempt; treat as success
+          // Already captured = money already collected on a prior attempt; treat as success
           if (msg.toLowerCase().includes("already been captured")) {
             console.log("[complete] PI already captured — treating as success:", piId);
             return null;
@@ -82,11 +88,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       };
 
       if (chargeableCents <= order.depositHoldCents) {
-        // Typical path: capture exactly what is owed (≤ authorized amount)
+        // Typical path: capture exactly what is owed (partial capture releases the rest)
         await safeCapture(order.stripePaymentIntentId, { amount_to_capture: captureAmount });
+        collectedCents = captureAmount;
       } else {
         // Overage: actual loads exceeded estimate — capture full authorization, charge extra
         await safeCapture(order.stripePaymentIntentId);
+        collectedCents = order.depositHoldCents;
 
         const overageCents = chargeableCents - order.depositHoldCents;
         if (overageCents >= STRIPE_MIN_CENTS && order.buyer.stripeCustomerId) {
@@ -98,7 +106,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           pmId = typeof rawPm === "string" ? rawPm : (rawPm?.id ?? null);
 
           if (!pmId) {
-            // No PM on deposit PI — list customer's saved cards and use the first
             const saved = await stripe.paymentMethods.list({ customer: order.buyer.stripeCustomerId, type: "card", limit: 1 });
             pmId = saved.data[0]?.id ?? null;
           }
@@ -116,9 +123,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                 description:    `Got Dirt? — Extra loads (${actualLoads - order.loads} over estimate) — Order ${order.id}`,
                 metadata:       { haulOrderId: order.id, type: "overage" },
               });
+              collectedCents = chargeableCents; // overage succeeded — full amount collected
             } catch (overageErr: unknown) {
-              // PM not reusable or declined — log but don't fail the completion.
-              // The extra loads will need manual collection outside the platform.
+              // PM not reusable or declined. Extra loads need manual collection.
+              // Payouts will be scaled to the deposit amount actually captured.
               console.error("[complete] overage charge failed:", overageErr instanceof Error ? overageErr.message : overageErr);
             }
           }
@@ -128,30 +136,37 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       await stripe.paymentIntents.cancel(order.stripePaymentIntentId);
     }
 
+    // Scale payouts to what was actually collected so the platform never runs a deficit.
+    // In the normal case collectedCents === chargeableCents so scale is 1.0.
+    const payoutScale = chargeableCents > 0 ? collectedCents / chargeableCents : 1;
+    const fundedHaulerPayout  = Math.round(actualHaulerPayout  * payoutScale);
+    const fundedPitPayout     = Math.round(pitMaterialPayout   * payoutScale);
+    const fundedPlatformFee   = Math.round(actualPlatformFee   * payoutScale);
+
     const updated = await prisma.haulOrder.update({
       where: { id: params.id },
       data:  {
         status:                 "COMPLETED",
         actualLoads,
         platformFeePercent:     haulFeePercent,
-        platformFeeCents:       actualPlatformFee,
-        haulerPayoutCents:      actualHaulerPayout,
-        pitMaterialFeeCents:    matPlatformFee,
-        pitMaterialPayoutCents: pitMaterialPayout,
+        platformFeeCents:       fundedPlatformFee,
+        haulerPayoutCents:      fundedHaulerPayout,
+        pitMaterialFeeCents:    Math.round(matPlatformFee   * payoutScale),
+        pitMaterialPayoutCents: fundedPitPayout,
       },
     });
 
     // ── Stripe payouts ────────────────────────────────────────────────────────
-    // Transfer to pit owner and hauler using their Stripe Connect accounts.
+    // Transfer to pit owner and hauler. Amounts are already scaled to collectedCents.
     // Fire-and-forget: failures are logged but don't block the buyer's response.
     const pitOwnerAccountId = order.pit?.owner?.stripeAccountId ?? null;
     const haulerAccountId   = order.driver?.user.stripeAccountId
                            ?? order.carrier?.user.stripeAccountId
                            ?? null;
 
-    if (pitMaterialPayout > 0 && pitOwnerAccountId) {
+    if (fundedPitPayout > 0 && pitOwnerAccountId) {
       stripe.transfers.create({
-        amount:         pitMaterialPayout,
+        amount:         fundedPitPayout,
         currency:       "usd",
         destination:    pitOwnerAccountId,
         transfer_group: order.id,
@@ -166,16 +181,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
             ownerEmail,
             ownerName,
             pitName:      pitNameStr,
-            payoutCents:  pitMaterialPayout,
+            payoutCents:  fundedPitPayout,
             invoiceNumber: `ORD-${order.id.slice(0, 8).toUpperCase()}`,
           }).catch(console.error);
         }
       }).catch((err: unknown) => console.error("[complete] pit owner transfer failed:", err));
     }
 
-    if (actualHaulerPayout > 0 && haulerAccountId) {
+    if (fundedHaulerPayout > 0 && haulerAccountId) {
       stripe.transfers.create({
-        amount:         actualHaulerPayout,
+        amount:         fundedHaulerPayout,
         currency:       "usd",
         destination:    haulerAccountId,
         transfer_group: order.id,
@@ -191,7 +206,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
             haulerName,
             buyerCompany,
             actualLoads,
-            payoutCents: actualHaulerPayout,
+            payoutCents: fundedHaulerPayout,
             orderId:     order.id,
           }).catch(console.error);
         }
@@ -220,9 +235,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       order:                  updated,
       actualLoads,
       chargeableCents,
-      platformFeeCents:       actualPlatformFee,
-      haulerPayoutCents:      actualHaulerPayout,
-      pitMaterialPayoutCents: pitMaterialPayout,
+      collectedCents,
+      platformFeeCents:       fundedPlatformFee,
+      haulerPayoutCents:      fundedHaulerPayout,
+      pitMaterialPayoutCents: fundedPitPayout,
     });
 
   } catch (err) {

@@ -24,7 +24,7 @@ interface Props {
   carriers:     Carrier[];
 }
 
-const DEPOSIT_PERCENT    = 25;
+const DEPOSIT_PERCENT    = 100;
 const RATE_FLOOR_BUFFER  = 1000; // $10 in cents — buyer can't go more than $10 below lowest driver
 
 const TRUCK_TYPES = [

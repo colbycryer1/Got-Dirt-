@@ -232,13 +232,14 @@ export async function POST(req: Request) {
   const haulTotal           = resolvedHaulRate * orderData.loads;
   const materialTotal       = pitMaterialRateCents * orderData.loads;
   const totalEstimatedCents = haulTotal + materialTotal;
-  // 25% deposit: buyer authorizes a partial hold now; the remainder is captured
-  // (or charged via off-session PI) at completion using actual loads.
+  // Full estimated-amount hold: Stripe captures exactly what is owed at completion
+  // (partial capture releases the remainder automatically). Overage PI is only
+  // needed when actual loads exceed the estimate.
   // Buyer-op trucks are cost-tracking only (not billed through Got Dirt), so
   // only the pit material charge factors into the deposit.
   const depositHoldCents = isBuyerOp
-    ? Math.round(materialTotal * 0.25)      // pit material only — truck cost is not billed
-    : Math.round(totalEstimatedCents * 0.25); // 25% of haul + pit material estimate
+    ? materialTotal          // pit material only — truck cost is not billed
+    : totalEstimatedCents;   // full haul + pit material estimate
 
   const haulPlatformFee       = isBuyerOp ? 0 : Math.round(haulTotal * haulFeePercent / 100);
   const haulerPayoutCents     = isBuyerOp ? 0 : haulTotal - haulPlatformFee;

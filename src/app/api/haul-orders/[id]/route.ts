@@ -62,8 +62,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       updateData.totalEstimatedCents = loads * perLoadCents;
       // Buyer-op deposit only covers material (truck cost is self-reported, not billed)
       updateData.depositHoldCents    = order.buyerOperating
-        ? Math.round(loads * order.pitMaterialRateCents * 0.25)
-        : Math.round(loads * perLoadCents * 0.25);
+        ? loads * order.pitMaterialRateCents
+        : loads * perLoadCents;
     }
     if (notes !== undefined) updateData.notes = notes || null;
 
