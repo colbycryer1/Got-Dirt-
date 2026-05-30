@@ -67,14 +67,26 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (order.stripePaymentIntentId && chargeableCents > 0) {
       const captureAmount = Math.max(chargeableCents, STRIPE_MIN_CENTS);
 
+      const safeCapture = async (piId: string, opts?: { amount_to_capture: number }) => {
+        try {
+          return await stripe.paymentIntents.capture(piId, opts);
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          // Already captured = money already collected on a previous attempt; treat as success
+          if (msg.toLowerCase().includes("already been captured")) {
+            console.log("[complete] PI already captured — treating as success:", piId);
+            return null;
+          }
+          throw e;
+        }
+      };
+
       if (chargeableCents <= order.depositHoldCents) {
         // Typical path: capture exactly what is owed (≤ authorized amount)
-        await stripe.paymentIntents.capture(order.stripePaymentIntentId, {
-          amount_to_capture: captureAmount,
-        });
+        await safeCapture(order.stripePaymentIntentId, { amount_to_capture: captureAmount });
       } else {
         // Overage: actual loads exceeded estimate — capture full authorization, charge extra
-        await stripe.paymentIntents.capture(order.stripePaymentIntentId);
+        await safeCapture(order.stripePaymentIntentId);
 
         const overageCents = chargeableCents - order.depositHoldCents;
         if (overageCents >= STRIPE_MIN_CENTS && order.buyer.stripeCustomerId) {
