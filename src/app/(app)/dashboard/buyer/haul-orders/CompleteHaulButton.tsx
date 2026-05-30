@@ -61,7 +61,7 @@ export default function CompleteHaulButton({ orderId, estimatedLoads, haulRateCe
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ actualLoads }),
       });
-      const data = await res.json() as { error?: string };
+      const data = await res.json().catch(() => ({})) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Failed to complete order");
       router.refresh();
     } catch (err: unknown) {
