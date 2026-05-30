@@ -90,24 +90,37 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
         const overageCents = chargeableCents - order.depositHoldCents;
         if (overageCents >= STRIPE_MIN_CENTS && order.buyer.stripeCustomerId) {
-          // Retrieve the PI to get the exact payment method the buyer originally used
+          // Prefer the PM from the deposit PI; fall back to the customer's most recently attached card
+          let pmId: string | null = null;
+
           const depositPI = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
-          const pmId = typeof depositPI.payment_method === "string"
-            ? depositPI.payment_method
-            : depositPI.payment_method?.id ?? null;
+          const rawPm = depositPI.payment_method;
+          pmId = typeof rawPm === "string" ? rawPm : (rawPm?.id ?? null);
+
+          if (!pmId) {
+            // No PM on deposit PI — list customer's saved cards and use the first
+            const saved = await stripe.paymentMethods.list({ customer: order.buyer.stripeCustomerId, type: "card", limit: 1 });
+            pmId = saved.data[0]?.id ?? null;
+          }
 
           if (pmId) {
-            await stripe.paymentIntents.create({
-              amount:         overageCents,
-              currency:       "usd",
-              customer:       order.buyer.stripeCustomerId,
-              payment_method: pmId,
-              confirm:        true,
-              off_session:    true,
-              automatic_payment_methods: { enabled: true, allow_redirects: "never" },
-              description:    `Got Dirt? — Extra loads (${actualLoads - order.loads} over estimate) — Order ${order.id}`,
-              metadata:       { haulOrderId: order.id, type: "overage" },
-            });
+            try {
+              await stripe.paymentIntents.create({
+                amount:         overageCents,
+                currency:       "usd",
+                customer:       order.buyer.stripeCustomerId,
+                payment_method: pmId,
+                confirm:        true,
+                off_session:    true,
+                automatic_payment_methods: { enabled: true, allow_redirects: "never" },
+                description:    `Got Dirt? — Extra loads (${actualLoads - order.loads} over estimate) — Order ${order.id}`,
+                metadata:       { haulOrderId: order.id, type: "overage" },
+              });
+            } catch (overageErr: unknown) {
+              // PM not reusable or declined — log but don't fail the completion.
+              // The extra loads will need manual collection outside the platform.
+              console.error("[complete] overage charge failed:", overageErr instanceof Error ? overageErr.message : overageErr);
+            }
           }
         }
       }

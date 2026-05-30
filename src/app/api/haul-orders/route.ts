@@ -305,6 +305,7 @@ export async function POST(req: Request) {
       currency:       "usd",
       customer:       cid,
       capture_method: "manual",
+      setup_future_usage: "off_session",
       automatic_payment_methods: { enabled: true, allow_redirects: "never" },
       metadata:       piMetadata,
       description:    piDescription,
